@@ -1,0 +1,4 @@
+interface:
+  display_name: "保存レシピ一括取り込み"
+  short_description: "保存済みHTMLをレシピカードへ一括変換します"
+  default_prompt: "Use $recipe-archive-importer to import every pending saved recipe page."
