@@ -21,6 +21,7 @@ button:active { transform: scale(.975); }
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 238px minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; padding: 28px 18px 22px; display: flex; flex-direction: column; border-right: 1px solid var(--line); background: rgba(249, 248, 243, .82); backdrop-filter: blur(22px) saturate(140%); }
 .brand { display: flex; align-items: center; gap: 11px; padding: 0 9px 30px; font-family: ui-serif, "Hiragino Mincho ProN", serif; font-size: 21px; font-weight: 700; letter-spacing: .04em; }
+.brand > span { line-height: 1.35; }
 .brand-mark { display: grid; place-items: center; width: 34px; height: 34px; color: white; background: var(--green); border-radius: 11px 11px 11px 4px; transform: rotate(-4deg); }
 .brand-mark svg { transform: rotate(4deg); }
 nav { display: grid; gap: 6px; }

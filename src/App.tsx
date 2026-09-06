@@ -120,7 +120,7 @@ function App() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand"><div className="brand-mark"><Leaf size={20}/></div><span>献立帖</span></div>
+        <div className="brand"><div className="brand-mark"><Leaf size={20}/></div><span>わが家の<br/>レシピ帖</span></div>
         <nav>
           <button className={view === 'planner' ? 'active' : ''} onClick={() => setView('planner')}><CalendarDays/><span>献立を考える</span></button>
           <button className={view === 'library' ? 'active' : ''} onClick={() => setView('library')}><BookOpen/><span>レシピ</span><em>{state.recipes.length}</em></button>
