@@ -4,6 +4,16 @@
 
 さまざまなレシピサイトの内容を統一された形式でローカルへ保存し、残り物と新しく作る料理を並べながら献立を考えるためのアプリです。
 
+## iOS・クラウド版
+
+`apps/mobile` に Expo / React Native のiOSアプリ、`services/api` に認証・共有レシピ帖・S3原本・OpenAIカード化・取り込み権課金のAPIとworkerを追加しています。既存のローカル版とは起動先と保存先が別です。
+
+- [実装計画](docs/ios-cloud-plan.md)
+- [現在の進捗と引き継ぎ](docs/ios-cloud-progress.md)
+- [設定・起動・公開手順](docs/cloud/runbook.md)
+
+外部サービスの設定、実課金Sandbox、TestFlight受入は公開前に必要です。ローカルのデータは自動アップロードされません。
+
 ## 起動
 
 ```bash
