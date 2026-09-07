@@ -4,7 +4,7 @@
 
 ## 現在地
 
-P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の最初の内部TestFlight実機UI確認を準備中。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。実クラウド接続、公開、実課金、実メール、実OpenAI/S3は未実施。既存ローカル版のdataは変更していない。
+P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3をApp Store Connectへアップロード済みで、Appleの処理完了待ち。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。実クラウド接続、公開、実課金、実メール、実OpenAI/S3は未実施。既存ローカル版のdataは変更していない。
 
 ## 引き継ぎ規則
 
@@ -33,13 +33,16 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-08 TestFlight準備: 誤って使った企業側Expoセッションをログアウトし、`oxycaster` / `oxycaster@gmail.com` へ切替確認。`oxycasters-organization` 所有のEAS project `wagaya-recipe` を新規作成し、専用bundle ID `com.oxycastersorganization.wagayarecipe` と内部TestFlight profileを設定。1024px・不透明PNGのアプリアイコンを追加した。
 - 実機UI用接続: 既存の443/4310配信を維持したまま、Tailnet限定HTTPS 8443をfixtureの4329へ追加。ローカルとTailnet URLの `/health` がともに200を返すことを確認し、fixtureをlaunchdの `com.oxycaster.wagaya-recipe-fixture` として起動した。fixtureは実サービスではなく、Mac停止/再起動やプロセス停止時には利用できない。
 - TestFlight提出前検証: 既存ウェブbuild、人数換算5/5、クラウドAPI 16/16、モバイル型検査、Expo依存関係検査、EAS testflight設定解決がすべて成功。次はApple配布証明書/Provisioning ProfileをEASで確定し、ビルドとApp Store Connectへのアップロードを行う。
+- 2026-09-08 TestFlight提出: Apple ID `oxycaster@gmail.com`、Apple Team `Hironao Sekine (N8FN3LCG22)` で認証。bundle IDをApple Developerへ登録し、既存の配布証明書と新規Provisioning Profileを使用した。EAS build `f82a3a9a-b524-4731-baa3-7a0fbd6d8efc`（version 0.1.0、build 3）は成功。
+- App Store Connectにアプリ `わが家のレシピ帖`（ASC App ID `6809590497`）と内部グループ `Team (Expo)` を作成し、`oxycaster@gmail.com` を有効化。EAS submission `c7e8ecec-148e-4166-a6f3-34c5a7694628` は `FINISHED` となり、バイナリのアップロードに成功した。現在はApple側の処理待ちで、TestFlight上でのインストール・起動はまだ未検証。
+- 初回の自動提出はテスト説明文（changelog）がExpo Enterprise限定だったため提出予約だけ失敗した。ビルド自体への影響はなく、説明文を外した `eas submit --platform ios --id f82a3a9a-b524-4731-baa3-7a0fbd6d8efc --profile testflight` で提出を完了した。
 
 ## 次のエージェントが行うこと
 
-1. `git status` とこの文書を読む。変更は未コミット。`.codex/environments/environment.toml` は作業開始時から存在した未追跡ファイルで、本実装に含めていない。
+1. `git status` とこの文書を読む。実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。TestFlight提出記録を追記した本書だけが後続コミット対象。`.codex/environments/environment.toml` は本実装に含めていない。
 2. `docs/cloud/runbook.md` の順に、このアプリ専用のSupabase/DB、S3/IAM、OpenAI、RevenueCat/Appleを設定する。既存の別製品の環境を流用しない。env例のキーは未設定で、利用者にAPIキーを取得させる設計ではない。
 3. 外部環境で、A/B/Cユーザーのアクセス境界、実メールOTP、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。実PostgreSQLのロック検証はrunbookのTEST_POSTGRES_URL手順を使う。
-4. bundle ID/EAS ID/アイコンは設定済み。商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
+4. Appleの処理完了後、App Store ConnectのTestFlight画面でbuild 3が利用可能になったことを確認し、iPhoneへインストールする。iPhoneとMacを同じTailnetへ接続した状態でfixture版のUIを検証する。その後、商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 
 ## 主なファイル
@@ -58,4 +61,4 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 
 ## ローカル実行状態（最終検証時）
 
-検証に使ったデモAPI（127.0.0.1:4329）とMetro（127.0.0.1:8093）は最終確認後、該当プロセスを照合して停止した。シミュレーターにアプリはインストール済み。デモの再起動手順はrunbookに記載。テスト用DBはメモリ上なので再起動で初期化される。
+TestFlight実機確認用のデモAPI（127.0.0.1:4329）はlaunchd `com.oxycaster.wagaya-recipe-fixture` で起動し、Tailscale ServeのTailnet限定HTTPS 8443から転送中。Mac停止・再起動後は状態を再確認する。Metro（127.0.0.1:8093）は停止済み。シミュレーターにアプリはインストール済み。デモの再起動手順はrunbookに記載。テスト用DBはメモリ上なので再起動で初期化される。
