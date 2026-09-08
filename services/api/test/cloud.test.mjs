@@ -62,7 +62,7 @@ after(async () => {
   }
 })
 async function actor() {
-  const id = randomUUID()
+  const id = `user_${randomUUID().replaceAll('-', '')}`
   await svc.identity(id, `${id}@example.com`)
   return id
 }
@@ -470,6 +470,7 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
 })
 test('HTTP requires auth and webhook secret, validates IDs, uploads without public HTML routes', async () => {
   const { user, book } = await setup(),
+    successor = await actor(),
     objects = new Map(),
     imageHtml = `${html}<meta property="og:image" content="/dish.png">`,
     imageBytes = Buffer.from('private-image')
@@ -552,39 +553,57 @@ test('HTTP requires auth and webhook secret, validates IDs, uploads without publ
       ).status,
       400,
     )
+    const invitation = await svc.invite(user, book, {
+      email: `${successor}@example.com`,
+      role: 'viewer',
+    })
+    await svc.acceptInvite(successor, invitation.token)
+    assert.equal(
+      (
+        await fetch(`${url}/v1/books/${book}/owner`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${user}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ userId: successor }),
+        })
+      ).status,
+      204,
+    )
   } finally {
     await new Promise((resolve) => server.close(resolve))
   }
 })
 
-test('JWT verifies signature, issuer, audience, expiry and non-anonymous authenticated identity', async () => {
-  const { privateKey, publicKey } = await generateKeyPair('ES256')
+test('Clerk JWT verifies signature, issuer, authorized party, expiry and identity', async () => {
+  const { privateKey, publicKey } = await generateKeyPair('RS256')
   const jwk = await exportJWK(publicKey),
-    issuer = 'https://test.supabase.co/auth/v1'
+    issuer = 'https://test.clerk.accounts.dev'
   const authenticate = authenticator(
-    'https://test.supabase.co',
+    issuer,
     createLocalJWKSet({ keys: [{ ...jwk, kid: 'test' }] }),
+    ['wagayarecipe://'],
   )
-  const id = randomUUID()
+  const id = 'user_test123'
   const token = (patch = {}) =>
     new SignJWT({
       sub: id,
       email: 'user@example.com',
-      role: 'authenticated',
       iss: issuer,
-      aud: 'authenticated',
+      azp: 'wagayarecipe://',
       exp: Math.floor(Date.now() / 1000) + 60,
       ...patch,
     })
-      .setProtectedHeader({ alg: 'ES256', kid: 'test' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'test' })
       .sign(privateKey)
   assert.equal((await authenticate(await token())).id, id)
+  assert.equal((await authenticate(await token({ azp: undefined }))).id, id)
   for (const patch of [
     { iss: 'https://attacker.example' },
-    { aud: 'wrong' },
+    { azp: 'https://attacker.example' },
     { exp: 1 },
-    { is_anonymous: true },
-    { role: 'anon' },
+    { sub: 'not-a-clerk-user' },
   ])
     await assert.rejects(authenticate(await token(patch)), {
       code: 'INVALID_SESSION',

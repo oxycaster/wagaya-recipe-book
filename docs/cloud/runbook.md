@@ -25,20 +25,20 @@ mise exec -- pnpm export:ios
 
 実PostgreSQLの複数接続で同じテストを行う場合は、専用のローカルDBを起動し `TEST_POSTGRES_URL=postgresql://recipe:recipe@127.0.0.1:54329/recipe mise exec -- pnpm test` をservices/apiから実行する。テストはランダム名の一時DBを作成し、終了時にそのDBだけを削除する。localhost以外は拒否する。テスト用DBロールにCREATEDB権限が必要。
 
-## シミュレーターの画面検証用デモ
+## シミュレーターのClerk開発確認
 
-実メール/API課金を使わない、メモリ上だけのテストサーバーを同梱している。本番Dockerにtestディレクトリは含めない。
+Clerk development instanceの実メール認証と、メモリ上だけのAPIサーバーを組み合わせて画面を確認する。本番Dockerにtestディレクトリは含めない。`services/api/.env` にdevelopment instanceの `CLERK_ISSUER_URL` を設定してから起動する。初回ログイン後は空の状態なので、画面からレシピ帖を作成する。
 
 ```sh
 # ターミナル1: services/api
-mise exec -- node test/demo-server.mjs
+mise exec -- node --env-file-if-exists=.env test/demo-server.mjs
 # ターミナル2: apps/mobile
-NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4329 EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:4329 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=local-fixture mise exec -- pnpm exec expo start --dev-client --localhost --port 8093
+NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4329 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=<development publishable key> mise exec -- pnpm exec expo start --dev-client --localhost --port 8093
 # ターミナル3: apps/mobile
 mise exec -- pnpm exec expo run:ios --no-bundler
 ```
 
-開発クライアントの接続先は `http://127.0.0.1:8093`。デモログインは `demo@example.test` / コード `123456`。ここに表示する残高・レシピは架空のもの。デモの認証はlocalhostのテスト専用で、本番認証の検証には使わない。終了時は各プロセスをCtrl-Cで停止する。
+開発クライアントの接続先は `http://127.0.0.1:8093`。自分のメールアドレスへ届くClerkの確認コードでログインする。APIデータはプロセス終了時に消え、課金・S3・OpenAIは実行しない。development instanceの成功をproduction instanceの検証済みとは扱わない。終了時は各プロセスをCtrl-Cで停止する。
 
 `expo run:ios --no-bundler` が別の8081ポートを開いた場合は、開発クライアントで上記8093を選ぶ。localhostがIPv6のみでlistenされる環境では上記NODE_OPTIONSを使う（端末が要求する127.0.0.1と一致させる）。
 
@@ -54,7 +54,7 @@ cd apps/mobile
 mise exec -- eas build --platform ios --profile testflight --auto-submit
 ```
 
-デモログインは `demo@example.test` / `123456`。停止時は `launchctl remove com.oxycaster.wagaya-recipe-fixture` と `/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --https=8443 off` を実行する。通常のウェブ版を配信する443/4310設定は変更しない。
+build 3だけは旧fixtureログイン `demo@example.test` / `123456` を使う。現在のClerk版をこの手順で再ビルドしない。停止時は `launchctl remove com.oxycaster.wagaya-recipe-fixture` と `/Applications/Tailscale.app/Contents/MacOS/Tailscale serve --https=8443 off` を実行する。通常のウェブ版を配信する443/4310設定は変更しない。
 
 ## 環境を用意する順序
 
@@ -65,15 +65,15 @@ mise exec -- eas build --platform ios --profile testflight --auto-submit
 | dev | ローカル実行またはTailnet内fixture | Docker `postgres:18-alpine` | RevenueCat SANDBOX |
 | prod | 公開HTTPSの本番サービス | Crunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` | RevenueCat PRODUCTION |
 
-Supabaseは認証専用で、レシピ、レシピ帖、課金台帳、取り込みジョブをSupabase DBへ保存しない。dev/prodで認証設定、S3 prefixまたはbucket、Webhook秘密を混在させない。
+Clerkは本人確認とセッショントークン発行だけに使い、レシピ、レシピ帖、課金台帳、取り込みジョブを保存しない。dev/prodでClerk instance、S3 prefixまたはbucket、Webhook秘密を混在させない。
 
-1. **Supabase**: このアプリ専用プロジェクト。Email Auth有効、匿名ログイン無効、ES256/RS256署名鍵を有効にする（旧HS256キーはこのAPIでは拒否）。Email OTPテンプレートで `{{ .Token }}` を表示し、メール内リンクを踏まずコード入力で完結させる。正式SMTP、送信レート制限、CAPTCHA/濫用対策はリリース前に設定する。公開キーはモバイル、secret/service-roleキーはワーカーだけへ。
+1. **Clerk**: このアプリ専用のClerk applicationを使い、development instanceをdev、production instanceをprodへ対応させる。メールアドレスのverification codeによるサインイン/サインアップとNative APIを有効にする。session tokenへ `email` claimを追加し、APIの `CLERK_ISSUER_URL` と `CLERK_AUTHORIZED_PARTIES` をinstanceごとに設定する。Publishable Keyだけをモバイルへ渡し、Secret Keyは退会処理を行うworkerだけへ渡す。新規登録・コード再送のレート制限とNative APIの濫用監視を公開前に確認する。
 2. **PostgreSQL**: devはリポジトリ直下で `docker compose -f infra/compose.yaml up -d postgres` を実行し、`APP_ENV=dev` とローカルの `DATABASE_URL` を使う。PostgreSQL 17の既存データディレクトリを18へ直接マウントしないため、Composeは新しい `recipe-postgres-18` volumeを18系の永続化先 `/var/lib/postgresql` へマウントする。prodはCrunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book` の直接接続URLをsecret managerへ保存し、`APP_ENV=prod` を設定する。Crunchy BridgeのチームCA PEMを `DATABASE_SSL_CA` に保存し、API/workerは `rejectUnauthorized: true` でサーバー証明書を検証する。URL、CA、パスワードをリポジトリやログへ残さない。`recipe_cloud` schemaには専用DBロールだけを許可し、既存製品DBへmigrationしない。
 3. **S3**: `infra/storage.tf` は新規の非公開バケット用。`terraform init` → `terraform plan -var bucket_name=...` を確認してから適用する。原本は `users/{auth-sub}/archives/{archive-id}.html`、サーバー経由の本人認証付き添付ダウンロードだけを提供。API/workerロールへ出力policyを付与。バージョニングやオブジェクトロックは削除実装を拡張するまで有効にしない。
 4. **OpenAI**: 運営者のAPIキーとStructured Outputs対応のモデルIDをワーカーへ設定。利用者にはキーを要求しない。`store:false`でもプロバイダーの保持条件がゼロになるとは限らないため、正式プライバシーポリシーには実契約に従い送信/保持を記載。単一入力120,000文字、出力8,000トークン、90秒。長すぎる原文は切り捨てずエラーにし、権利を返す。
-5. **RevenueCat / App Store Connect**: 新規iOSアプリとConsumable商品を作成。商品ID→権利数をサーバーの `REVENUECAT_PRODUCTS` に登録。価格はStoreKitの商品情報から表示し、サーバーに価格を固定しない。SDKは必ずSupabase subでログインした後に購入し、匿名購入は行わない。異なるApp User IDへの購入転送を許可しない設定にする。Webhookは `POST /webhooks/revenuecat`、Authorizationを `Bearer <32文字以上の秘密>` に設定。App Store Server NotificationsもRevenueCatへ設定する。SANDBOXはdev、PRODUCTIONはprodだけで受け入れ、Webhook秘密を分離する。
+5. **RevenueCat / App Store Connect**: 新規iOSアプリとConsumable商品を作成。商品ID→権利数をサーバーの `REVENUECAT_PRODUCTS` に登録。価格はStoreKitの商品情報から表示し、サーバーに価格を固定しない。SDKは必ずClerk user IDでログインした後に購入し、匿名購入は行わない。異なるApp User IDへの購入転送を許可しない設定にする。Webhookは `POST /webhooks/revenuecat`、Authorizationを `Bearer <32文字以上の秘密>` に設定。App Store Server NotificationsもRevenueCatへ設定する。SANDBOXはdev、PRODUCTIONはprodだけで受け入れ、Webhook秘密を分離する。
 6. **API / worker**: services/api/.env.example を `.env` にコピーし必要な値を設定。`pnpm migrate` → `pnpm start` と別プロセスの `pnpm worker`。本番はDockerfileで同じimageを使い、APIは `node index.mjs`、workerは `node worker.mjs`。APIの前にTLS終端/アクセス制限/分散レート制限を置く。APIは認証後のJSONエンドポイントだけを公開し、既存 `server.mjs` は本番に公開しない。`/health` はDB疎通を確認する。
-7. **Expo**: apps/mobile/.env.example を `.env` にコピー。API/Supabase URL、公開キー、RevenueCat iOS SDK公開キー、正式な規約URL、bundle ID、EAS project IDを設定。参考アプリのbundle ID/EAS IDをコピーしない。`pnpm exec expo run:ios` でネイティブ開発ビルド。課金検証はExpo Goでは行わない。正式アイコン/スクリーンショット/サポートURLを作成し、EAS production build、TestFlightで受入後に提出。
+7. **Expo**: apps/mobile/.env.example を `.env` にコピー。API URL、Clerk Publishable Key、RevenueCat iOS SDK公開キー、正式な規約URL、bundle ID、EAS project IDを設定。Clerk DashboardのNative applicationsへTeam IDとbundle IDを登録する。参考アプリのbundle ID/EAS IDをコピーしない。`pnpm exec expo run:ios` でネイティブ開発ビルド。課金検証はExpo Goでは行わない。正式アイコン/スクリーンショット/サポートURLを作成し、EAS production build、TestFlightで受入後に提出。
 
 ## PostgreSQLの受入
 
@@ -90,7 +90,7 @@ prodでは、ホスティング先のsecret managerから `APP_ENV=prod`、`DATA
 
 ## API概要
 
-すべて `/v1` はSupabaseアクセストークンのBearer認証。UUIDパラメーターはサーバー検証。内部DB/S3キーは画面に渡さない。
+すべて `/v1` はClerkセッショントークンのBearer認証。署名、issuer、有効期限、authorized party、`user_...`形式のsubject、email claimをサーバー検証する。内部DB/S3キーは画面に渡さない。
 
 | 操作 | エンドポイント |
 |---|---|

@@ -7,7 +7,7 @@ const url = 'postgresql://recipe:recipe@127.0.0.1:54329/recipe'
 const apiEnv = {
   APP_ENV: 'dev',
   DATABASE_URL: url,
-  SUPABASE_URL: 'https://example.supabase.co',
+  CLERK_ISSUER_URL: 'https://test.clerk.accounts.dev',
   S3_BUCKET: 'recipe-test',
   AWS_REGION: 'ap-northeast-1',
   REVENUECAT_WEBHOOK_SECRET: 'x'.repeat(32),

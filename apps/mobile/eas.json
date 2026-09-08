@@ -24,8 +24,7 @@
       "env": {
         "IOS_BUNDLE_IDENTIFIER": "com.oxycastersorganization.wagayarecipe",
         "EXPO_PUBLIC_API_URL": "https://hiro-mac.tail6a2f57.ts.net:8443",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://hiro-mac.tail6a2f57.ts.net:8443",
-        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "local-fixture"
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZGlzdGluY3Qtb3Bvc3N1bS05ODI2LmNsZXJrLmFjY291bnRzLmRldiQ"
       }
     },
     "production": {

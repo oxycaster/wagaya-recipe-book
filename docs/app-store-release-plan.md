@@ -6,7 +6,7 @@
 
 利用者が自分のメールアドレスで登録し、家族とレシピ帖を共有し、取り込み権をApp内課金で購入して、保存したHTMLをOpenAIでレシピカード化できるiOSアプリをApp Storeで公開する。
 
-公開候補は、Tailnet内のfixtureへ接続する現在のbuild 3ではなく、prodのSupabase Auth、Crunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book`、S3、API/worker、OpenAI、RevenueCatへ接続した新しいproduction buildとする。Supabaseは認証専用とし、レシピデータを保存しない。既存ウェブ版と `data/` は移動・削除・自動移行しない。
+公開候補は、Tailnet内のfixtureへ接続する現在のbuild 3ではなく、prodのClerk、Crunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book`、S3、API/worker、OpenAI、RevenueCatへ接続した新しいproduction buildとする。Clerkには本人確認に必要な情報だけを持たせ、レシピデータは保存しない。既存ウェブ版と `data/` は移動・削除・自動移行しない。
 
 ## 2. 現在地
 
@@ -21,7 +21,7 @@
 ### 公開を止めている事項
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
-- prodのSupabase Auth、Crunchy Bridge PostgreSQL、実S3、公開API/worker、実OpenAIは未接続。
+- prodのClerk、Crunchy Bridge PostgreSQL、実S3、公開API/worker、実OpenAIは未接続。
 - RevenueCatとApp Store ConnectのConsumable商品、Sandbox購入、返金、通知再送は未検証。
 - プライバシーポリシー、利用規約、サポートページの正式URLがない。
 - App Privacy、年齢区分、コンテンツ権利、価格、販売地域、ストア説明・スクリーンショットが未確定。
@@ -85,7 +85,7 @@
 
 環境はdevとprodの2つだけとし、stagingは作らない。devはローカルDocker PostgreSQL 18、prodはCrunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book` を使い、既存製品の環境や利用者を流用しない。
 
-1. 認証専用のSupabaseプロジェクトを作り、メールOTP、正式SMTP、レート制限、CAPTCHA、JWT issuer/audience/公開鍵を設定する。Supabase DBにはレシピデータを保存しない。
+1. Clerkアプリのdevelopment/production instanceをdev/prodへ対応させ、メールOTP、Native API、濫用対策、JWT issuer/公開鍵/authorized party、`email`カスタムsession claimを設定する。Clerkにはレシピデータを保存しない。
 2. `prod-wagaya-recipe-book` へ `recipe_cloud` schemaをmigrationする。アプリ用の最小権限ロール、接続数上限、チームCAによるTLS証明書検証、バックアップ/PITRを設定する。
 3. 非公開S3バケットとAPI/worker用IAMロールを作り、Public Access Block、TLS、暗号化、CORS不要を確認する。
 4. APIとworkerを常時稼働環境へ配置し、独自HTTPSドメイン、分散レート制限、secret managerを設定する。
@@ -116,7 +116,7 @@
 - Paid Apps Agreement、税務情報、銀行口座、販売地域を確認する。
 - RevenueCatにiOSアプリ、商品、公開SDKキー、App Store Connect連携を設定する。Sandboxイベントはdev、Productionイベントはprodだけで受け入れ、Webhook秘密を分離する。
 - RevenueCat WebhookのBearer secret、App Store Server Notifications、再送手順、アラートを設定する。
-- Supabase subをRevenueCat App User IDとして使用し、匿名購入や別ユーザーへの購入転送を許可しない。
+- Clerk user IDをRevenueCat App User IDとして使用し、匿名購入や別ユーザーへの購入転送を許可しない。
 
 Sandbox受入:
 
@@ -140,7 +140,7 @@ Sandbox受入:
 App Store Connect:
 
 - ja-JPの名称、サブタイトル、説明、キーワード、カテゴリ、プロモーション文、サポートURL、プライバシーURL、著作権表記。
-- App Privacyは自社サーバーとSupabase、OpenAI、RevenueCatを含む実際のデータフローから回答する。
+- App Privacyは自社サーバーとClerk、OpenAI、RevenueCatを含む実際のデータフローから回答する。
 - メールアドレス、ユーザーID、ユーザーコンテンツ、購入履歴、診断情報について、収集・本人との関連付け・利用目的をデータフロー表と照合する。
 - 年齢区分質問票、コンテンツ権利、輸出コンプライアンス、広告ID/追跡なしを確認する。
 - privacy manifestと全SDKのPrivacy Nutrition Label材料をXcodeのprivacy reportで照合する。
@@ -234,3 +234,6 @@ production TestFlightで次を確認する。
 - Crunchy Bridgeチーム証明書: https://docs.crunchybridge.com/api/certificate
 - Crunchy Bridge PostgreSQLバージョン: https://docs.crunchybridge.com/concepts/postgres-versions
 - Docker PostgreSQL 18の永続化先: https://hub.docker.com/_/postgres
+- Clerk Expo Quickstart: https://clerk.com/docs/expo/getting-started/quickstart
+- Clerk session tokenのカスタムclaim: https://clerk.com/docs/guides/sessions/customize-session-tokens
+- Clerk JWT検証: https://clerk.com/docs/guides/sessions/manual-jwt-verification

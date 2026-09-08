@@ -1,0 +1,10 @@
+allowBuilds:
+  browser-tabs-lock: true
+  bufferutil: true
+  core-js: true
+  utf-8-validate: true
+onlyBuiltDependencies:
+  - browser-tabs-lock
+  - bufferutil
+  - core-js
+  - utf-8-validate

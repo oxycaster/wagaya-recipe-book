@@ -13,6 +13,7 @@ export const requireThat = (ok, status, code) => {
 }
 export const hash = (value) => createHash('sha256').update(value).digest('hex')
 export const uuid = z.uuid()
+export const userId = z.string().min(1).max(200).regex(/^user_[A-Za-z0-9]+$/)
 export const cardSchema = z
   .object({
     title: z.string().trim().min(1).max(300),
@@ -62,7 +63,7 @@ export function domain(db) {
   return {
     run,
     async identity(id, email) {
-      uuid.parse(id)
+      userId.parse(id)
       return db.transaction(async (c) => {
         const { rows } = await c.query(
           `INSERT INTO users(id,email) VALUES($1,$2)

@@ -3,8 +3,7 @@ if (process.env.EAS_BUILD_PROFILE === 'production') {
     'IOS_BUNDLE_IDENTIFIER',
     'EAS_PROJECT_ID',
     'EXPO_PUBLIC_API_URL',
-    'EXPO_PUBLIC_SUPABASE_URL',
-    'EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    'EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY',
     'EXPO_PUBLIC_REVENUECAT_IOS_KEY',
     'EXPO_PUBLIC_PRIVACY_URL',
     'EXPO_PUBLIC_TERMS_URL',
@@ -18,7 +17,6 @@ if (process.env.EAS_BUILD_PROFILE === 'production') {
   }
   for (const key of [
     'EXPO_PUBLIC_API_URL',
-    'EXPO_PUBLIC_SUPABASE_URL',
     'EXPO_PUBLIC_PRIVACY_URL',
     'EXPO_PUBLIC_TERMS_URL',
   ]) {
@@ -46,6 +44,7 @@ export default {
     plugins: [
       'expo-router',
       'expo-secure-store',
+      '@clerk/expo',
       'expo-document-picker',
       'expo-image',
     ],

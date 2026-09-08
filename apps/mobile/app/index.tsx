@@ -16,6 +16,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { useAuth, useSignIn, useSignUp, useUser } from '@clerk/expo'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { Image } from 'expo-image'
@@ -23,16 +24,16 @@ import * as Crypto from 'expo-crypto'
 import * as DocumentPicker from 'expo-document-picker'
 import { File, Paths } from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
-import type { Session } from '@supabase/supabase-js'
 import { useLocalSearchParams } from 'expo-router'
 import {
   api,
+  authToken,
   configured,
   products,
   purchaseIdentity,
   Purchases,
+  setAuthTokenProvider,
   settings,
-  supabase,
 } from '../src/client'
 import type {
   Archive,
@@ -143,8 +144,8 @@ function RecipeArtwork({
     let active = true
     setFailed(false)
     if (recipe.has_image)
-      void supabase.auth.getSession().then(({ data }) => {
-        if (active) setToken(data.session?.access_token || '')
+      void authToken().then((value) => {
+        if (active) setToken(value || '')
       })
     return () => {
       active = false
@@ -214,37 +215,12 @@ function Frame({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null),
-    [ready, setReady] = useState(false),
-    [authError, setAuthError] = useState('')
+  const { isLoaded, isSignedIn, userId, getToken, signOut } = useAuth(),
+    { user } = useUser()
   const params = useLocalSearchParams<{ token?: string }>()
   useEffect(() => {
-    supabase.auth
-      .getSession()
-      .then(({ data, error }) => {
-        setSession(data.session)
-        if (error) setAuthError(error.message)
-        setReady(true)
-      })
-      .catch((e) => {
-        setAuthError(errorText(e))
-        setReady(true)
-      })
-    const { data } = supabase.auth.onAuthStateChange((_event, value) =>
-      setSession(value),
-    )
-    const sync = () =>
-      AppState.currentState === 'active'
-        ? supabase.auth.startAutoRefresh()
-        : supabase.auth.stopAutoRefresh()
-    sync()
-    const sub = AppState.addEventListener('change', sync)
-    return () => {
-      data.subscription.unsubscribe()
-      sub.remove()
-      supabase.auth.stopAutoRefresh()
-    }
-  }, [])
+    setAuthTokenProvider(getToken)
+  }, [getToken])
   if (!configured)
     return (
       <Frame>
@@ -256,25 +232,45 @@ export default function App() {
         </View>
       </Frame>
     )
-  if (!ready)
+  if (!isLoaded)
     return (
       <Frame>
         <ActivityIndicator style={{ marginTop: 80 }} color={green} />
       </Frame>
     )
-  return session ? (
-    <Home key={session.user.id} session={session} initialToken={params.token} />
+  return isSignedIn && userId ? (
+    <Home
+      key={userId}
+      userId={userId}
+      email={user?.primaryEmailAddress?.emailAddress || ''}
+      signOut={signOut}
+      initialToken={params.token}
+    />
   ) : (
-    <Login initialError={authError} />
+    <Login />
   )
 }
 
-function Login({ initialError }: { initialError: string }) {
+function clerkError(value: unknown) {
+  const candidate = value as {
+    errors?: Array<{ longMessage?: string; message?: string; code?: string }>
+  }
+  return new Error(
+    candidate.errors?.[0]?.longMessage ||
+      candidate.errors?.[0]?.message ||
+      '認証できませんでした。入力内容を確認してください。',
+  )
+}
+
+function Login() {
+  const { signIn } = useSignIn(),
+    { signUp } = useSignUp()
   const [email, setEmail] = useState(''),
     [code, setCode] = useState(''),
+    [attempt, setAttempt] = useState<'sign-in' | 'sign-up'>('sign-in'),
     [sent, setSent] = useState(false),
     [busy, setBusy] = useState(false),
-    [message, setMessage] = useState(initialError)
+    [message, setMessage] = useState('')
   const perform = async (fn: () => Promise<void>) => {
     setBusy(true)
     setMessage('')
@@ -311,11 +307,25 @@ function Login({ initialError }: { initialError: string }) {
             disabled={busy || !email.trim()}
             onPress={() =>
               void perform(async () => {
-                const { error } = await supabase.auth.signInWithOtp({
-                  email: email.trim(),
-                  options: { shouldCreateUser: true },
+                const emailAddress = email.trim().toLowerCase()
+                const { error } = await signIn.create({
+                  identifier: emailAddress,
                 })
-                if (error) throw error
+                if (!error) {
+                  const { error: sendError } =
+                    await signIn.emailCode.sendCode({ emailAddress })
+                  if (sendError) throw clerkError(sendError)
+                  setAttempt('sign-in')
+                } else if (error.code === 'form_identifier_not_found') {
+                  const { error: createError } = await signUp.create({
+                    emailAddress,
+                  })
+                  if (createError) throw clerkError(createError)
+                  const { error: sendError } =
+                    await signUp.verifications.sendEmailCode()
+                  if (sendError) throw clerkError(sendError)
+                  setAttempt('sign-up')
+                } else throw clerkError(error)
                 setSent(true)
                 setMessage('メールに届いた確認コードを入力してください。')
               })
@@ -334,12 +344,22 @@ function Login({ initialError }: { initialError: string }) {
                 disabled={busy || code.length < 6}
                 onPress={() =>
                   void perform(async () => {
-                    const { error } = await supabase.auth.verifyOtp({
-                      email: email.trim(),
-                      token: code.trim(),
-                      type: 'email',
-                    })
-                    if (error) throw error
+                    if (attempt === 'sign-in') {
+                      const { error } = await signIn.emailCode.verifyCode({
+                        code: code.trim(),
+                      })
+                      if (error) throw clerkError(error)
+                      const { error: finalizeError } = await signIn.finalize()
+                      if (finalizeError) throw clerkError(finalizeError)
+                    } else {
+                      const { error } =
+                        await signUp.verifications.verifyEmailCode({
+                          code: code.trim(),
+                        })
+                      if (error) throw clerkError(error)
+                      const { error: finalizeError } = await signUp.finalize()
+                      if (finalizeError) throw clerkError(finalizeError)
+                    }
                   })
                 }
               />
@@ -380,10 +400,14 @@ function LegalLinks() {
 }
 
 function Home({
-  session,
+  userId,
+  email,
+  signOut,
   initialToken,
 }: {
-  session: Session
+  userId: string
+  email: string
+  signOut: () => Promise<void>
   initialToken?: string
 }) {
   const [books, setBooks] = useState<Book[]>([]),
@@ -562,7 +586,7 @@ function Home({
             key={`${book.id}:${tab}`}
             book={book}
             tab={tab}
-            userId={session.user.id}
+            userId={userId}
             wallet={wallet}
             busy={busy}
             run={run}
@@ -572,8 +596,9 @@ function Home({
         )}
         {tab === '設定' && (
           <Settings
-            userId={session.user.id}
-            email={session.user.email || ''}
+            userId={userId}
+            email={email}
+            signOut={signOut}
             wallet={wallet}
             busy={busy}
             run={run}
@@ -1159,12 +1184,13 @@ function Imports({
             disabled={busy}
             onPress={() =>
               void run(async () => {
-                const { data } = await supabase.auth.getSession()
+                const token = await authToken()
+                if (!token) throw new Error('ログインしてください。')
                 const response = await fetch(
                   `${settings.api}/v1/archives/${a.id}/html`,
                   {
                     headers: {
-                      Authorization: `Bearer ${data.session?.access_token}`,
+                      Authorization: `Bearer ${token}`,
                     },
                   },
                 )
@@ -1527,12 +1553,18 @@ function FamilyView({
 function Settings({
   userId,
   email,
+  signOut,
   wallet,
   busy,
   run,
   refresh,
   notify,
-}: { userId: string; email: string; wallet: Wallet | null } & Actions) {
+}: {
+  userId: string
+  email: string
+  signOut: () => Promise<void>
+  wallet: Wallet | null
+} & Actions) {
   const [catalog, setCatalog] = useState<Awaited<ReturnType<typeof products>>>(
     [],
   )
@@ -1613,12 +1645,7 @@ function Settings({
           secondary
           label="ログアウト"
           disabled={busy}
-          onPress={() =>
-            void run(async () => {
-              const { error } = await supabase.auth.signOut({ scope: 'local' })
-              if (error) throw error
-            })
-          }
+          onPress={() => void run(signOut)}
         />
         <Button
           secondary
@@ -1636,7 +1663,7 @@ function Settings({
                   onPress: () =>
                     void run(async () => {
                       await api('/me', 'DELETE', { confirm: 'DELETE' })
-                      await supabase.auth.signOut({ scope: 'local' })
+                      await signOut()
                     }),
                 },
               ],

@@ -1,21 +1,25 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { z } from 'zod'
-import { Fault } from './domain.mjs'
-export function authenticator(supabaseUrl, keySet) {
-  const issuer = `${supabaseUrl.replace(/\/$/, '')}/auth/v1`
+import { Fault, userId } from './domain.mjs'
+
+export function authenticator(clerkIssuer, keySet, authorizedParties = []) {
+  const issuer = clerkIssuer.replace(/\/$/, '')
   const jwks =
     keySet || createRemoteJWKSet(new URL(`${issuer}/.well-known/jwks.json`))
   return async (token) => {
     try {
       const { payload } = await jwtVerify(token, jwks, {
         issuer,
-        audience: 'authenticated',
-        algorithms: ['ES256', 'RS256'],
+        algorithms: ['RS256'],
       })
-      if (payload.role !== 'authenticated' || payload.is_anonymous === true)
+      if (
+        authorizedParties.length &&
+        payload.azp &&
+        !authorizedParties.includes(payload.azp)
+      )
         throw new Error()
       return {
-        id: z.uuid().parse(payload.sub),
+        id: userId.parse(payload.sub),
         email: z.email().parse(payload.email),
       }
     } catch {

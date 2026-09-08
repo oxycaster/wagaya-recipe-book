@@ -8,7 +8,14 @@ const settings = config(),
 const app = createApp({
   db,
   store: storage(process.env),
-  authenticate: authenticator(process.env.SUPABASE_URL),
+  authenticate: authenticator(
+    process.env.CLERK_ISSUER_URL,
+    undefined,
+    (process.env.CLERK_AUTHORIZED_PARTIES || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean),
+  ),
   config: settings,
 })
 const server = app.listen(Number(process.env.PORT || 4320), '0.0.0.0', () =>

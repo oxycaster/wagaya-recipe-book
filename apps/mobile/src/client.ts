@@ -1,92 +1,21 @@
 import 'react-native-url-polyfill/auto'
-import * as SecureStore from 'expo-secure-store'
-import * as Crypto from 'expo-crypto'
-import { createClient } from '@supabase/supabase-js'
 import Purchases, { PRODUCT_CATEGORY } from 'react-native-purchases'
 
 export const settings = {
   api: process.env.EXPO_PUBLIC_API_URL || '',
-  supabase: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-  publishable: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '',
+  clerkPublishable: process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || '',
   revenuecat: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY || '',
   privacy: process.env.EXPO_PUBLIC_PRIVACY_URL || '',
   terms: process.env.EXPO_PUBLIC_TERMS_URL || '',
 }
 export const configured = Boolean(
-  settings.api && settings.supabase && settings.publishable,
+  settings.api && settings.clerkPublishable,
 )
-// Split sessions to stay under native secure-storage value limits. Publish the pointer last.
-const secureOperations = {
-  async getItem(key: string) {
-    const pointer = await SecureStore.getItemAsync(key)
-    if (!pointer) return null
-    const { generation, count } = JSON.parse(pointer) as {
-      generation: string
-      count: number
-    }
-    const parts = await Promise.all(
-      Array.from({ length: count }, (_, i) =>
-        SecureStore.getItemAsync(`${key}.${generation}.${i}`),
-      ),
-    )
-    return parts.some((p) => p === null) ? null : parts.join('')
-  },
-  async setItem(key: string, value: string) {
-    const previous = await SecureStore.getItemAsync(key),
-      generation = Crypto.randomUUID(),
-      points = Array.from(value),
-      count = Math.ceil(points.length / 400)
-    for (let i = 0; i < count; i++)
-      await SecureStore.setItemAsync(
-        `${key}.${generation}.${i}`,
-        points.slice(i * 400, (i + 1) * 400).join(''),
-      )
-    await SecureStore.setItemAsync(key, JSON.stringify({ generation, count }))
-    if (previous) {
-      const old = JSON.parse(previous)
-      for (let i = 0; i < old.count; i++)
-        await SecureStore.deleteItemAsync(`${key}.${old.generation}.${i}`)
-    }
-  },
-  async removeItem(key: string) {
-    const previous = await SecureStore.getItemAsync(key)
-    await SecureStore.deleteItemAsync(key)
-    if (previous) {
-      const old = JSON.parse(previous)
-      for (let i = 0; i < old.count; i++)
-        await SecureStore.deleteItemAsync(`${key}.${old.generation}.${i}`)
-    }
-  },
+let getAuthToken: () => Promise<string | null> = async () => null
+export function setAuthTokenProvider(provider: () => Promise<string | null>) {
+  getAuthToken = provider
 }
-// Serialize reads with writes so a refresh cannot remove chunks being read by getSession.
-let storageQueue: Promise<unknown> = Promise.resolve()
-function storageTask<T>(fn: () => Promise<T>): Promise<T> {
-  const next = storageQueue.then(fn, fn)
-  storageQueue = next.then(
-    () => undefined,
-    () => undefined,
-  )
-  return next
-}
-const secureStorage = {
-  getItem: (key: string) => storageTask(() => secureOperations.getItem(key)),
-  setItem: (key: string, value: string) =>
-    storageTask(() => secureOperations.setItem(key, value)),
-  removeItem: (key: string) =>
-    storageTask(() => secureOperations.removeItem(key)),
-}
-export const supabase = createClient(
-  settings.supabase || 'https://unconfigured.invalid',
-  settings.publishable || 'unconfigured',
-  {
-    auth: {
-      storage: secureStorage,
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  },
-)
+export const authToken = () => getAuthToken()
 const messages: Record<string, string> = {
   INSUFFICIENT_CREDITS: '取り込み権が不足しています。「設定」で購入できます。',
   BOOK_ACCESS_DENIED: 'このレシピ帖の操作権限がありません。',
@@ -114,8 +43,8 @@ export async function api<T>(
   method = 'GET',
   body?: unknown,
 ): Promise<T> {
-  const { data } = await supabase.auth.getSession()
-  if (!data.session) throw new Error('ログインしてください。')
+  const token = await authToken()
+  if (!token) throw new Error('ログインしてください。')
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 35000)
   try {
@@ -124,7 +53,7 @@ export async function api<T>(
       {
         method,
         headers: {
-          Authorization: `Bearer ${data.session.access_token}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),

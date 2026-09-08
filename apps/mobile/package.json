@@ -10,7 +10,7 @@
     "export:ios": "expo export --platform ios"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.115.0",
+    "@clerk/expo": "^4.6.5",
     "expo": "~55.0.9",
     "expo-constants": "~55.0.9",
     "expo-crypto": "~55.0.8",

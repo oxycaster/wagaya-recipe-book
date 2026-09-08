@@ -2,7 +2,15 @@ import express from 'express'
 import { rateLimit } from 'express-rate-limit'
 import { randomUUID, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
-import { domain, member, Fault, requireThat, hash, uuid } from './domain.mjs'
+import {
+  domain,
+  member,
+  Fault,
+  requireThat,
+  hash,
+  uuid,
+  userId,
+} from './domain.mjs'
 import { billingEvent } from './billing.mjs'
 import {
   fetchHtml,
@@ -65,8 +73,12 @@ export function createApp({
     await service.identity(req.actor.id, req.actor.email)
     next()
   })
-  app.param(['book', 'id', 'target'], (req, _res, next, value) => {
+  app.param(['book', 'id'], (req, _res, next, value) => {
     uuid.parse(value)
+    next()
+  })
+  app.param('target', (req, _res, next, value) => {
+    userId.parse(value)
     next()
   })
   const user = (req) => req.actor.id
@@ -110,11 +122,11 @@ export function createApp({
     res.sendStatus(204)
   })
   app.post('/v1/books/:book/owner', async (req, res) => {
-    await service.transfer(
-      user(req),
-      req.params.book,
-      uuid.parse(req.body.userId),
-    )
+      await service.transfer(
+        user(req),
+        req.params.book,
+        userId.parse(req.body.userId),
+      )
     res.sendStatus(204)
   })
   app.get('/v1/books/:book/archives', async (req, res) =>

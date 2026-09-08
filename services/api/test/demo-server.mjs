@@ -4,6 +4,7 @@ import { PGlite } from '@electric-sql/pglite'
 import { readFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { createApp } from '../app.mjs'
+import { authenticator } from '../auth.mjs'
 import { domain, hash, Fault } from '../domain.mjs'
 import { billingEvent } from '../billing.mjs'
 import { processOne } from '../jobs.mjs'
@@ -17,7 +18,7 @@ const db = {
     transaction: (fn) => pg.transaction(fn),
   },
   svc = domain(db)
-const id = 'ba16e4eb-d109-4d77-bd88-6291720832a9',
+const id = 'user_localfixture',
   email = 'demo@example.test'
 await svc.identity(id, email)
 const book = await svc.createBook(id, 'わが家の一冊')
@@ -128,6 +129,19 @@ const session = () => ({
   user: authUser,
 })
 const app = express()
+const authenticate = process.env.CLERK_ISSUER_URL
+  ? authenticator(
+      process.env.CLERK_ISSUER_URL,
+      undefined,
+      (process.env.CLERK_AUTHORIZED_PARTIES || '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    )
+  : async (token) => {
+      if (token !== secret) throw new Fault(401, 'INVALID_SESSION')
+      return { id, email }
+    }
 app.use('/auth/v1', express.json())
 app.post('/auth/v1/otp', (_req, res) => res.json({}))
 app.post('/auth/v1/verify', (req, res) =>
@@ -142,17 +156,15 @@ app.use(
   createApp({
     db,
     store,
-    authenticate: async (token) => {
-      if (token !== secret) throw new Fault(401, 'INVALID_SESSION')
-      return { id, email }
-    },
+    authenticate,
     config: { webhookSecret: secret, billing },
     fetchPage: async (url) => ({ url, html: '<h1>デモのレシピ</h1>' }),
   }),
 )
-const server = app.listen(4329, '127.0.0.1', () =>
+const port = Number(process.env.DEMO_PORT || 4329)
+const server = app.listen(port, '127.0.0.1', () =>
   console.log(
-    'LOCAL FIXTURE http://127.0.0.1:4329 — demo@example.test / 123456',
+    `LOCAL FIXTURE http://127.0.0.1:${port} — demo@example.test / 123456`,
   ),
 )
 const interval = setInterval(

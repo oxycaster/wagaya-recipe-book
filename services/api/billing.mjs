@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
-import { requireThat, uuid } from './domain.mjs'
+import { requireThat } from './domain.mjs'
 
 export async function billingEvent(db, event, config) {
   if (
@@ -16,7 +16,7 @@ export async function billingEvent(db, event, config) {
       app_id: z.string(),
       store: z.literal('APP_STORE'),
       environment: z.enum(['PRODUCTION', 'SANDBOX']),
-      app_user_id: uuid,
+      app_user_id: z.string().min(1).max(200).regex(/^[A-Za-z0-9_-]+$/),
       product_id: z.string(),
       transaction_id: z.string().min(1).max(200),
       event_timestamp_ms: z.number().int().positive(),
