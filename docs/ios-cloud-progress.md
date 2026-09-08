@@ -57,12 +57,13 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 Clerk production受入: production instance `ins_3J3T9d1wKbtkYPlVhRH8W9xXwju` の本番ドメインを `wagaya.oxycaster.com` に変更し、Secondary applicationとして認証基盤も同じサブドメインに隔離した。Route 53へClerk指定CNAME 5件を追加し、DNS・SSL・mailがすべてcomplete。prod設定はdevと同一で、メールコードのみ、primary email必須/変更不可、sessionの `email` claimを確認した。production keyはまだファイルへ取得していない。
 - 2026-09-09 prod S3基盤受入: AWS Tokyoに `prod-wagaya-recipe-book-archives-619330834313` をTerraformで作成。Public Access Block 4項目、BucketOwnerEnforced、AES256 SSE、非TLS拒否のbucket policyを実設定で確認し、匿名head requestは拒否された。バケットversioningは導入していない。API/worker用IAMロール、S3への実HTML/画像保存・削除、孤立object棚卸しは未実施。
 - Terraform stateは現時点でignoredの `infra/terraform.tfstate` にだけ存在する。次のインフラ変更前に、専用のversioning有効・暗号化済みstate bucketとS3 backendへ移行し、stateを共有可能にする。stateやcredentialをGitへ追加しない。
+- 2026-09-09 ホスティング方針: CDKとGitHub Actionsによる継続デプロイを前提に、prod API/workerはARM64単一EC2、Elastic IP、ECR、SSM、Secrets Manager、GitHub OIDC限定ロールで構成することにした。既存のDBリースworkerを常駐のまま稼働でき、Crunchy Bridgeの許可元を固定IPだけにできる。Lambdaも候補として検討したが、SQS起点へのworker再設計と少なくともOpenAI/Crunchy Bridge向けのVPC NAT/固定IPが必要で、初期構成の費用・運用が増すため採用しない。既存prod S3はTerraform作成済みなので、初回CDKは参照し、CloudFormation resource importを伴う移管は別作業にする。CDKコード、OIDC workflow、実リソース作成は未実施。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
 2. Clerk production domainは受入済み。API/workerホスティング先のsecret managerへ新しいproduction publishable/secret keyを保存し、Native API、`email` session claim、authorized partyを本番buildで再確認する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
-3. dev Docker PostgreSQL、prod Crunchy Bridge PostgreSQL、prod S3の基盤受入は完了。次はAPI/workerのホスティング先、最小権限IAMロール、固定egress/secret managerを決め、DBの暫定operator IPを置換する。Production Checkで残るproduction instance/HA/log drain、別クラスタへのバックアップ復元はG2完了前に判断・検証する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を確認する。
+3. dev Docker PostgreSQL、prod Crunchy Bridge PostgreSQL、prod S3の基盤受入は完了。次はCDKでAPI/worker用EC2、Elastic IP、ECR、SSM、Secrets Manager、GitHub OIDC、API DNSを定義し、CDK diffと月額見込みを確認する。実作成後にDBの暫定operator IPを固定egressへ置換する。Production Checkで残るproduction instance/HA/log drain、別クラスタへのバックアップ復元はG2完了前に判断・検証する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を確認する。
 4. iPhoneのTestFlightで `oxycaster@gmail.com` 宛ての招待コードを引き換え、build 3をインストールする。iPhoneとMacを同じTailnetへ接続した状態でfixture版のUIを検証する。その後、商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 

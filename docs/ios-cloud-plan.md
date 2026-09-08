@@ -8,6 +8,8 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 
 認証はClerkのメールOTP（利用者はAPIキー不要）、APIはExpress、永続化はdevのDocker PostgreSQL 18またはprodのCrunchy Bridge PostgreSQL 18、HTMLは非公開S3、カード化はサーバー側OpenAI Responses API、購入はStoreKitを扱うRevenueCat SDK + 認証付きWebhookを採用する。Clerkは本人確認とセッショントークン発行を担当し、レシピ帖の権限はアプリDBで管理する。環境はdevとprodの2つだけとし、stagingは設けない。これらは現時点の実装上の選択。既存の別製品のユーザー・課金・データは流用しない。
 
+本番API/workerは AWS CDK 管理の単一EC2（ARM64、Docker）に配置する。Elastic IPを固定送信元とし、Crunchy Bridgeの接続許可はこのIPだけにする。APIと既存のDBリース型workerを同じイメージで稼働し、OpenAI・S3・Clerkへの外向き通信もこのホストから行う。GitHub ActionsはGitHub OIDCで限定IAMロールを引き受け、ECRへイメージを登録後、SSM Run Commandで対象EC2を更新する。長期AWSアクセスキーやSSH秘密鍵はGitHubへ置かない。EC2、Elastic IP、ECR、IAM、Secrets Manager、Route 53のAPIレコードはCDKで管理する。既存S3バケットはTerraform作成済みのため、初回CDKでは参照して利用し、CloudFormation resource importを伴う所有権移管は別の安全な作業として扱う。
+
 ## データ境界
 
 - user: Clerkの認証sub（文字列ID）。購入権・HTML原本は本人に所属。JWTの署名/issuer/audience/期限を検証する。
@@ -39,6 +41,8 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 3. [x] P3 iOS: Expo、ログイン、レシピ帖、取り込み、カード、献立、家族、購入、削除導線。型検査とiOS bundle export。
 4. [x] P4 運用: env例、Docker、S3設定、起動手順、引き継ぎ、既存版build/test。
 5. [ ] P5 外部環境での受入: 実メールOTP、S3、実OpenAI、RevenueCat Sandbox、TestFlight実機、削除/返金/復旧、審査資料。
+
+P5のホスティング工程では、CDKアプリ、GitHub OIDC信頼ポリシー（対象repository・production environment・mainブランチに限定）、ECR、EC2/Elastic IP、SSM、Secrets Manager、`api.wagaya.oxycaster.com` を作成する。CDK synth/diffとGitHub Actionsのdry-run相当の検証を先行し、実リソース作成前に月額見込みと作成差分を提示する。稼働後は固定IPへCrunchy Bridge firewallを置換し、実API/worker/S3/LLMの受入を行う。
 
 P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、devのTailnet内ローカルfixtureへ接続する。続いてprodのClerk、Crunchy Bridge PostgreSQL 18、S3、API/worker、OpenAI、RevenueCatへ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実クラウド受入済みとは扱わない。
 
