@@ -6,7 +6,7 @@
 
 利用者が自分のメールアドレスで登録し、家族とレシピ帖を共有し、取り込み権をApp内課金で購入して、保存したHTMLをOpenAIでレシピカード化できるiOSアプリをApp Storeで公開する。
 
-公開候補は、Tailnet内のfixtureへ接続する現在のbuild 3ではなく、専用の本番Supabase/PostgreSQL/S3/API/worker/OpenAI/RevenueCatへ接続した新しいproduction buildとする。既存ウェブ版と `data/` は移動・削除・自動移行しない。
+公開候補は、Tailnet内のfixtureへ接続する現在のbuild 3ではなく、prodのSupabase Auth、Crunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book`、S3、API/worker、OpenAI、RevenueCatへ接続した新しいproduction buildとする。Supabaseは認証専用とし、レシピデータを保存しない。既存ウェブ版と `data/` は移動・削除・自動移行しない。
 
 ## 2. 現在地
 
@@ -21,7 +21,7 @@
 ### 公開を止めている事項
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
-- 実Supabase、実PostgreSQL、実S3、公開API/worker、実OpenAIは未接続。
+- prodのSupabase Auth、Crunchy Bridge PostgreSQL、実S3、公開API/worker、実OpenAIは未接続。
 - RevenueCatとApp Store ConnectのConsumable商品、Sandbox購入、返金、通知再送は未検証。
 - プライバシーポリシー、利用規約、サポートページの正式URLがない。
 - App Privacy、年齢区分、コンテンツ権利、価格、販売地域、ストア説明・スクリーンショットが未確定。
@@ -49,7 +49,7 @@
 |---|---|---|---|---|
 | M0 | build 3実機確認 | 不具合一覧、端末スクリーンショット | 招待受諾、主要画面・画像・帖名変更・再起動後セッションを実機確認 | 0.5〜1日 |
 | M1 | 公開仕様確定 | 上表の決定、価格表、保持方針 | 未決定項目に責任者と確定値がある | 0.5〜1日 |
-| M2 | 本番クラウド構築 | staging/production環境、秘密管理、監視、バックアップ | 実サービスの疎通・権限境界・復元演習が成功 | 2〜4日 |
+| M2 | 本番クラウド構築 | dev/prod環境、秘密管理、監視、バックアップ | 実サービスの疎通・権限境界・復元演習が成功 | 2〜4日 |
 | M3 | 認証・AI受入 | 実OTP、S3原本、OpenAIカード化 | 実HTMLで成功/要確認/失敗を確認し、権利残高が正しい | 1〜2日 |
 | M4 | 課金受入 | Consumable商品、RevenueCat、Webhook | Sandbox購入・重複通知・返金・再ログイン後残高を確認 | 2〜3日 |
 | M5 | 法務・ストア素材 | 規約、Privacy、Support、説明、画像、審査メモ | App Store Connectの必須項目とprivacy manifest監査が完了 | 2〜4日 |
@@ -83,10 +83,10 @@
 
 ### M2 専用クラウド環境
 
-stagingとproductionを分離し、既存製品の環境や利用者を流用しない。
+環境はdevとprodの2つだけとし、stagingは作らない。devはローカルDocker PostgreSQL 18、prodはCrunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book` を使い、既存製品の環境や利用者を流用しない。
 
-1. Supabaseプロジェクトを作り、メールOTP、正式SMTP、レート制限、CAPTCHA、JWT issuer/audience/公開鍵を設定する。
-2. 専用PostgreSQLへ `recipe_cloud` schemaをmigrationし、PostgRESTの公開schemaには追加しない。
+1. 認証専用のSupabaseプロジェクトを作り、メールOTP、正式SMTP、レート制限、CAPTCHA、JWT issuer/audience/公開鍵を設定する。Supabase DBにはレシピデータを保存しない。
+2. `prod-wagaya-recipe-book` へ `recipe_cloud` schemaをmigrationする。アプリ用の最小権限ロール、接続数上限、チームCAによるTLS証明書検証、バックアップ/PITRを設定する。
 3. 非公開S3バケットとAPI/worker用IAMロールを作り、Public Access Block、TLS、暗号化、CORS不要を確認する。
 4. APIとworkerを常時稼働環境へ配置し、独自HTTPSドメイン、分散レート制限、secret managerを設定する。
 5. DBのPITR/backup、復元手順、S3孤立原本の棚卸し、秘密ローテーション手順を作る。
@@ -114,7 +114,7 @@ stagingとproductionを分離し、既存製品の環境や利用者を流用し
 
 - App Store ConnectでConsumable商品を新規作成する。販売済み商品の権利数は後から変えず、変更時は新商品IDを追加する。
 - Paid Apps Agreement、税務情報、銀行口座、販売地域を確認する。
-- RevenueCatにiOSアプリ、商品、公開SDKキー、App Store Connect連携を設定する。Sandbox/Productionのapp ID、DB、Webhookを分離する。
+- RevenueCatにiOSアプリ、商品、公開SDKキー、App Store Connect連携を設定する。Sandboxイベントはdev、Productionイベントはprodだけで受け入れ、Webhook秘密を分離する。
 - RevenueCat WebhookのBearer secret、App Store Server Notifications、再送手順、アラートを設定する。
 - Supabase subをRevenueCat App User IDとして使用し、匿名購入や別ユーザーへの購入転送を許可しない。
 
@@ -195,7 +195,7 @@ production TestFlightで次を確認する。
 
 - [ ] G0: build 3のiPhone実機UI確認が完了。
 - [ ] G1: 公開仕様、価格、保持期間、問い合わせ先が確定。
-- [ ] G2: staging/productionのクラウドとバックアップ復元を実証。
+- [ ] G2: dev/prodの接続分離と、prodのバックアップ復元を実証。
 - [ ] G3: 実OTP、S3、OpenAI、家族権限、削除の外部受入に合格。
 - [ ] G4: RevenueCat Sandboxの購入・重複・返金・残高復旧に合格。
 - [ ] G5: 規約、Privacy、Support、App Privacy、年齢区分、権利確認が完了。
@@ -230,3 +230,7 @@ production TestFlightで次を確認する。
 - アカウント削除: https://developer.apple.com/support/offering-account-deletion-in-your-app/
 - スクリーンショット: https://developer.apple.com/help/app-store-connect/manage-app-information/upload-app-previews-and-screenshots
 - OpenAI APIデータ管理: https://developers.openai.com/api/docs/guides/your-data
+- Crunchy Bridge接続とTLS: https://docs.crunchybridge.com/connecting
+- Crunchy Bridgeチーム証明書: https://docs.crunchybridge.com/api/certificate
+- Crunchy Bridge PostgreSQLバージョン: https://docs.crunchybridge.com/concepts/postgres-versions
+- Docker PostgreSQL 18の永続化先: https://hub.docker.com/_/postgres

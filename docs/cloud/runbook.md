@@ -58,13 +58,35 @@ mise exec -- eas build --platform ios --profile testflight --auto-submit
 
 ## 環境を用意する順序
 
+環境は次の2つだけとし、stagingは作らない。
+
+| 環境 | API/worker | PostgreSQL | 課金イベント |
+|---|---|---|---|
+| dev | ローカル実行またはTailnet内fixture | Docker `postgres:18-alpine` | RevenueCat SANDBOX |
+| prod | 公開HTTPSの本番サービス | Crunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` | RevenueCat PRODUCTION |
+
+Supabaseは認証専用で、レシピ、レシピ帖、課金台帳、取り込みジョブをSupabase DBへ保存しない。dev/prodで認証設定、S3 prefixまたはbucket、Webhook秘密を混在させない。
+
 1. **Supabase**: このアプリ専用プロジェクト。Email Auth有効、匿名ログイン無効、ES256/RS256署名鍵を有効にする（旧HS256キーはこのAPIでは拒否）。Email OTPテンプレートで `{{ .Token }}` を表示し、メール内リンクを踏まずコード入力で完結させる。正式SMTP、送信レート制限、CAPTCHA/濫用対策はリリース前に設定する。公開キーはモバイル、secret/service-roleキーはワーカーだけへ。
-2. **PostgreSQL**: Supabaseの直接接続またはsession pooler（transaction poolerは接続オプションの動作を確認するまで使わない）。`recipe_cloud` schemaをPostgRESTの公開schemaに追加しない。専用DBロールとTLS検証を設定する。ローカルのみ `docker compose -f infra/compose.yaml up -d` が使える。既存の製品DBにmigrationをかけない。
+2. **PostgreSQL**: devはリポジトリ直下で `docker compose -f infra/compose.yaml up -d postgres` を実行し、`APP_ENV=dev` とローカルの `DATABASE_URL` を使う。PostgreSQL 17の既存データディレクトリを18へ直接マウントしないため、Composeは新しい `recipe-postgres-18` volumeを18系の永続化先 `/var/lib/postgresql` へマウントする。prodはCrunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book` の直接接続URLをsecret managerへ保存し、`APP_ENV=prod` を設定する。Crunchy BridgeのチームCA PEMを `DATABASE_SSL_CA` に保存し、API/workerは `rejectUnauthorized: true` でサーバー証明書を検証する。URL、CA、パスワードをリポジトリやログへ残さない。`recipe_cloud` schemaには専用DBロールだけを許可し、既存製品DBへmigrationしない。
 3. **S3**: `infra/storage.tf` は新規の非公開バケット用。`terraform init` → `terraform plan -var bucket_name=...` を確認してから適用する。原本は `users/{auth-sub}/archives/{archive-id}.html`、サーバー経由の本人認証付き添付ダウンロードだけを提供。API/workerロールへ出力policyを付与。バージョニングやオブジェクトロックは削除実装を拡張するまで有効にしない。
 4. **OpenAI**: 運営者のAPIキーとStructured Outputs対応のモデルIDをワーカーへ設定。利用者にはキーを要求しない。`store:false`でもプロバイダーの保持条件がゼロになるとは限らないため、正式プライバシーポリシーには実契約に従い送信/保持を記載。単一入力120,000文字、出力8,000トークン、90秒。長すぎる原文は切り捨てずエラーにし、権利を返す。
-5. **RevenueCat / App Store Connect**: 新規iOSアプリとConsumable商品を作成。商品ID→権利数をサーバーの `REVENUECAT_PRODUCTS` に登録。価格はStoreKitの商品情報から表示し、サーバーに価格を固定しない。RevenueCat app IDとSANDBOX/PRODUCTIONを指定。SDKは必ずSupabase subでログインした後に購入し、匿名購入は行わない。異なるApp User IDへの購入転送を許可しない設定にする。Webhookは `POST /webhooks/revenuecat`、Authorizationを `Bearer <32文字以上の秘密>` に設定。App Store Server NotificationsもRevenueCatへ設定する。SandboxとProductionはAPI/DB/S3/認証を分ける。
+5. **RevenueCat / App Store Connect**: 新規iOSアプリとConsumable商品を作成。商品ID→権利数をサーバーの `REVENUECAT_PRODUCTS` に登録。価格はStoreKitの商品情報から表示し、サーバーに価格を固定しない。SDKは必ずSupabase subでログインした後に購入し、匿名購入は行わない。異なるApp User IDへの購入転送を許可しない設定にする。Webhookは `POST /webhooks/revenuecat`、Authorizationを `Bearer <32文字以上の秘密>` に設定。App Store Server NotificationsもRevenueCatへ設定する。SANDBOXはdev、PRODUCTIONはprodだけで受け入れ、Webhook秘密を分離する。
 6. **API / worker**: services/api/.env.example を `.env` にコピーし必要な値を設定。`pnpm migrate` → `pnpm start` と別プロセスの `pnpm worker`。本番はDockerfileで同じimageを使い、APIは `node index.mjs`、workerは `node worker.mjs`。APIの前にTLS終端/アクセス制限/分散レート制限を置く。APIは認証後のJSONエンドポイントだけを公開し、既存 `server.mjs` は本番に公開しない。`/health` はDB疎通を確認する。
 7. **Expo**: apps/mobile/.env.example を `.env` にコピー。API/Supabase URL、公開キー、RevenueCat iOS SDK公開キー、正式な規約URL、bundle ID、EAS project IDを設定。参考アプリのbundle ID/EAS IDをコピーしない。`pnpm exec expo run:ios` でネイティブ開発ビルド。課金検証はExpo Goでは行わない。正式アイコン/スクリーンショット/サポートURLを作成し、EAS production build、TestFlightで受入後に提出。
+
+## PostgreSQLの受入
+
+devではComposeを起動後、`services/api` からmigrationと実PostgreSQL統合テストを行う。`TEST_POSTGRES_URL` は安全のためlocalhost以外を拒否する。
+
+```sh
+docker compose -f infra/compose.yaml up -d postgres
+cd services/api
+APP_ENV=dev mise exec -- pnpm migrate
+TEST_POSTGRES_URL=postgresql://recipe:recipe@127.0.0.1:54329/recipe mise exec -- pnpm test
+```
+
+prodでは、ホスティング先のsecret managerから `APP_ENV=prod`、`DATABASE_URL`、`DATABASE_SSL_CA` をAPI、worker、migrationジョブへ注入する。migration前に対象クラスタ名が `prod-wagaya-recipe-book` であることを管理画面で再確認する。接続後は `SHOW server_version` が18系であること、`pg_stat_ssl` の現在接続で `ssl = true` かつTLS 1.2以上であること、`recipe_cloud` schemaだけにmigrationされたことを記録する。バックアップから一時的な別クラスタへ復元し、件数と主要参照を確認してからG2を完了とする。本番URL、証明書、ユーザー名、復元先の秘密は進捗文書へ記録しない。
 
 ## API概要
 

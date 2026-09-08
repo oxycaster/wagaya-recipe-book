@@ -1,5 +1,11 @@
 export function config(env = process.env, { worker = false } = {}) {
-  const required = ['DATABASE_URL', 'SUPABASE_URL', 'S3_BUCKET', 'AWS_REGION']
+  const required = [
+    'APP_ENV',
+    'DATABASE_URL',
+    'SUPABASE_URL',
+    'S3_BUCKET',
+    'AWS_REGION',
+  ]
   required.push(
     ...(worker
       ? ['OPENAI_API_KEY', 'OPENAI_MODEL', 'SUPABASE_SECRET_KEY']
@@ -11,6 +17,9 @@ export function config(env = process.env, { worker = false } = {}) {
         ]),
   )
   for (const key of required) if (!env[key]) throw new Error(`Missing ${key}`)
+  if (!['dev', 'prod'].includes(env.APP_ENV)) throw new Error('Invalid APP_ENV')
+  if (env.APP_ENV === 'prod' && !env.DATABASE_SSL_CA)
+    throw new Error('Missing DATABASE_SSL_CA')
   if (!worker && env.REVENUECAT_WEBHOOK_SECRET.length < 32)
     throw new Error('Webhook secret must be at least 32 characters')
   if (

@@ -6,7 +6,7 @@
 
 lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポジトリに独立した iOS アプリを追加する。既存 Vite + Express と data/ はローカル版として維持する。原本の自動移動・上書きはしない。
 
-認証は Supabase Auth のメールOTP（利用者はAPIキー不要）、APIは Express、永続化は PostgreSQL、HTMLは非公開 S3、カード化はサーバー側 OpenAI Responses API、購入は StoreKit を扱う RevenueCat SDK + 認証付きWebhookを採用する。これらは現時点の実装上の選択。既存の別製品のユーザー・課金・データは流用しない。
+認証は Supabase Auth のメールOTP（利用者はAPIキー不要）、APIは Express、永続化はdevのDocker PostgreSQL 18またはprodのCrunchy Bridge PostgreSQL 18、HTMLは非公開 S3、カード化はサーバー側 OpenAI Responses API、購入は StoreKit を扱う RevenueCat SDK + 認証付きWebhookを採用する。Supabaseは認証専用で、レシピデータは保存しない。環境はdevとprodの2つだけとし、stagingは設けない。これらは現時点の実装上の選択。既存の別製品のユーザー・課金・データは流用しない。
 
 ## データ境界
 
@@ -27,7 +27,7 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 - URL取得は公開IPだけにDNS解決を固定し、各リダイレクトも検証。HTML上限2MB、応答時間制限、同時ジョブ/保存件数上限を設ける。
 - S3 public access block + SSE + TLS。HTMLは添付ファイルで返す。料理画像は会員資格を再検証するAPIから配信し、端末ではメモリキャッシュだけを使う。HTML内の画像/スクリプトをアプリ内で実行しない。
 - APIキー、DB URL、Webhook秘密はサーバー環境変数。モバイルには公開キーとAPI URLだけ。
-- DBの専用schemaに保存し、Supabase RESTには公開しない。全クエリで会員資格を検証する。
+- DBの専用schemaに保存し、SupabaseにはレシピDBを持たせない。全クエリで会員資格を検証する。
 - アカウント削除はまずアクセス無効化、ジョブ停止、所有レシピ帖は家族がいる場合は所有権移譲を要求。S3/認証削除は再試行可能な処理にする。会計台帳は最小限の監査記録を保持。
 - HTMLと抽出結果に個人情報が含まれうる。OpenAI送信について取り込み前に明示し、原文の欠落や誤抽出は利用者が確認できるようにする。
 - 料金・商品ID・本番リージョン・bundle ID・正式な利用規約/プライバシーポリシーURLは公開前に確定。S3/AWS、Supabase、OpenAI、RevenueCat、Apple/EASの新規有料リソースや提出はこの実装では実行しない。
@@ -40,7 +40,7 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 4. [x] P4 運用: env例、Docker、S3設定、起動手順、引き継ぎ、既存版build/test。
 5. [ ] P5 外部環境での受入: 実メールOTP、S3、実OpenAI、RevenueCat Sandbox、TestFlight実機、削除/返金/復旧、審査資料。
 
-P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、Tailnet内のローカルfixtureへ接続する。続いて専用のSupabase/PostgreSQL/S3/API/worker/OpenAI/RevenueCat環境へ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実クラウド受入済みとは扱わない。
+P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、devのTailnet内ローカルfixtureへ接続する。続いてprodのSupabase Auth、Crunchy Bridge PostgreSQL 18、S3、API/worker、OpenAI、RevenueCatへ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実クラウド受入済みとは扱わない。
 
 P5以降の公開作業は `docs/app-store-release-plan.md` のM0〜M7とG0〜G7で管理する。App Reviewへ提出するproduction buildは、fixture用 `testflight` profileと分離し、公開可否ゲートをすべて満たすこと。
 

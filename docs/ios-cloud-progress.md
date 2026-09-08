@@ -4,7 +4,7 @@
 
 ## 現在地
 
-P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3はAppleの処理を完了し、内部グループで利用可能。テスター `oxycaster@gmail.com` は招待未受諾のため、iPhoneのTestFlightで招待コードを引き換える段階。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。実クラウド接続、公開、実課金、実メール、実OpenAI/S3は未実施。既存ローカル版のdataは変更していない。
+P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3はAppleの処理を完了し、内部グループで利用可能。テスター `oxycaster@gmail.com` は招待未受諾のため、iPhoneのTestFlightで招待コードを引き換える段階。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。DB構成はdevのDocker PostgreSQL 18とprodのCrunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` に確定し、stagingは設けない。prod接続、公開、実課金、実メール、実OpenAI/S3は未実施。既存ローカル版のdataは変更していない。
 
 ## 引き継ぎ規則
 
@@ -38,12 +38,14 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 初回の自動提出はテスト説明文（changelog）がExpo Enterprise限定だったため提出予約だけ失敗した。ビルド自体への影響はなく、説明文を外した `eas submit --platform ios --id f82a3a9a-b524-4731-baa3-7a0fbd6d8efc --profile testflight` で提出を完了した。
 - 2026-09-08 TestFlight配信確認: App Store Connectでbuild 3が「提出準備完了」、内部グループ `Team (Expo)` に1ビルド・1テスターが設定されていることを確認。`oxycaster@gmail.com` の状態は「招待済み」で、同アドレスのGmailにAppleの招待メールが到着済み。招待コードは秘密情報として文書・コミットに保存しない。
 - 2026-09-08 公開計画: `docs/app-store-release-plan.md` を追加。内部実機確認から公開仕様、本番クラウド、実OpenAI、課金、法務/Privacy、ストア素材、production TestFlight、App Review、公開後確認までをM0〜M7に分割し、G0〜G7の公開可否ゲートと即時中止条件を定義した。公開作業自体は未着手。
+- 2026-09-08 DB/環境設計更新: 環境をdev/prodの2つに限定。devはDocker PostgreSQL 18、prodはCrunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book` とし、Supabaseは認証専用に整理した。Composeを18へ更新し、17系データ領域の直接再利用を避ける `recipe-postgres-18` volumeへ変更。APIは `APP_ENV` を検証し、prodではsecret managerから渡すCrunchy BridgeチームCAを必須にして証明書検証を有効化した。実クラスタへの接続、migration、バックアップ復元は未実施。
+- DB設定検証: `cd services/api && mise exec -- pnpm test` → 22/22成功。devでTLSを暗黙に有効化しないこと、prodでCA必須・証明書検証有効、未知の環境名拒否を含む。`docker compose -f infra/compose.yaml config` と `git diff --check` も成功。実コンテナ起動はDocker Desktop停止中（`docker.sock` なし）のため未実施であり、PostgreSQL 18への実接続成功とは扱わない。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
 2. `docs/app-store-release-plan.md` のM0から順に進める。最初にbuild 3の実機UI確認と、販売地域・対応端末・価格・問い合わせ先・保持期間を確定する。
-3. 外部環境で、A/B/Cユーザーのアクセス境界、実メールOTP、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。実PostgreSQLのロック検証はrunbookのTEST_POSTGRES_URL手順を使う。
+3. devのDocker PostgreSQL 18で複数接続テストを行う。続いてprodの `prod-wagaya-recipe-book` へmigrationし、PG18/TLS/権限、バックアップ復元を確認する。外部環境ではA/B/Cユーザーのアクセス境界、実メールOTP、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。
 4. iPhoneのTestFlightで `oxycaster@gmail.com` 宛ての招待コードを引き換え、build 3をインストールする。iPhoneとMacを同じTailnetへ接続した状態でfixture版のUIを検証する。その後、商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 
