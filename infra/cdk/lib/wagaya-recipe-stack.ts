@@ -28,7 +28,15 @@ export class WagayaRecipeStack extends cdk.Stack {
     const runtimeUser = new iam.User(this, 'RuntimeS3User', {
       userName: `${name}-runtime-s3`,
     })
-    archiveBucket.grantReadWrite(runtimeUser, 'users/*')
+    runtimeUser.addToPolicy(new iam.PolicyStatement({
+      actions: ['s3:ListBucket'],
+      resources: [archiveBucket.bucketArn],
+      conditions: { StringLike: { 's3:prefix': ['users/*'] } },
+    }))
+    runtimeUser.addToPolicy(new iam.PolicyStatement({
+      actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
+      resources: [archiveBucket.arnForObjects('users/*')],
+    }))
     const runtimeAccessKey = new iam.CfnAccessKey(this, 'RuntimeS3AccessKey', {
       userName: runtimeUser.userName,
       status: 'Active',
@@ -102,7 +110,7 @@ export class WagayaRecipeStack extends cdk.Stack {
         userData: '#!/bin/bash\nset -eu\napt-get update\napt-get install -y ca-certificates curl docker.io docker-compose-v2\nsystemctl enable --now docker\ninstall -d -m 0750 /opt/wagaya-recipe-book\n',
       })
       const staticIp = new lightsail.CfnStaticIp(this, 'ApiStaticIp', {
-        staticIpName: 'prod-wagaya-recipe-book-api',
+        staticIpName: 'prod-wagaya-recipe-book-api-ip',
         attachedTo: instance.instanceName,
       })
       new cdk.CfnOutput(this, 'ApiStaticIpAddress', { value: staticIp.attrIpAddress })

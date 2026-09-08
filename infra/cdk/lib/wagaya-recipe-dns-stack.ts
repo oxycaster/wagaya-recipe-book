@@ -14,10 +14,11 @@ export class WagayaRecipeDnsStack extends cdk.Stack {
     if (!apiStaticIp || !/^(?:\d{1,3}\.){3}\d{1,3}$/.test(apiStaticIp))
       throw new Error('apiStaticIp context must be an IPv4 address')
 
-    const oidc = new iam.OpenIdConnectProvider(this, 'GitHubOidcProvider', {
-      url: 'https://token.actions.githubusercontent.com',
-      clientIds: ['sts.amazonaws.com'],
-    })
+    const oidc = iam.OpenIdConnectProvider.fromOpenIdConnectProviderArn(
+      this,
+      'GitHubOidcProvider',
+      `arn:${this.partition}:iam::${account}:oidc-provider/token.actions.githubusercontent.com`,
+    )
     const deployRole = new iam.Role(this, 'GitHubDnsDeployRole', {
       roleName: 'wagaya-recipe-book-production-github-dns-deploy',
       assumedBy: new iam.WebIdentityPrincipal(oidc.openIdConnectProviderArn, {

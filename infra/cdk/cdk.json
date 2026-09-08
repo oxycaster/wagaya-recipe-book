@@ -5,6 +5,6 @@
     "githubRepository": "oxycaster/wagaya-recipe-book",
     "parentHostedZoneId": "Z07405471OEYVNVS2TQ3H",
     "lightsailBlueprintId": "ubuntu_22_04",
-    "lightsailBundleId": "medium_2_0"
+    "lightsailBundleId": "small_3_0"
   }
 }
