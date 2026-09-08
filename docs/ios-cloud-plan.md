@@ -1,6 +1,6 @@
 # iOS・クラウド版 実装計画
 
-作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。Clerk developmentの実メール認証、Clerk production instance作成、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18の初期受入は完了。Clerk productionのDNS/SSL、S3/API/worker・実OpenAI・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
+作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。Clerk developmentの実メール認証、Clerk production domainのDNS/SSL、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18、非公開prod S3の初期受入は完了。API/worker・実OpenAI・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
 
@@ -48,7 +48,7 @@ P5以降の公開作業は `docs/app-store-release-plan.md` のM0〜M7とG0〜G7
 
 実装済みと実サービス検証済みは区別する。進捗は docs/ios-cloud-progress.md に、各区切りの変更・実行コマンド・結果・未完了・次の手順を追記する。
 
-P1〜P4のチェックはコードとローカル検証の完了を表す。Clerk developmentとdev/prod PostgreSQL以外のS3、OpenAI、課金の外部アダプターが実際のアカウントで成功したことを意味しない。Docker image実ビルドはP5環境で確認する。
+P1〜P4のチェックはコードとローカル検証の完了を表す。Clerk development/production、dev/prod PostgreSQL、prod S3の基盤受入以外のOpenAI、課金の外部アダプターが実際のアカウントで成功したことを意味しない。S3への実原本保存と削除、Docker image実ビルドはP5環境で確認する。
 
 ## 外部受入シナリオ
 

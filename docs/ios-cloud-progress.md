@@ -4,7 +4,7 @@
 
 ## 現在地
 
-P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3はAppleの処理を完了し、内部グループで利用可能。このbuild 3はClerk移行前のfixture版なので、UI確認専用として扱い再ビルドしない。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。認証はClerk、DBはdevのDocker PostgreSQL 18とprodのCrunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` に確定し、stagingは設けない。Clerk development instanceの実メールOTP・セッション復元、Clerk production instance作成、dev PostgreSQL 18、prod PostgreSQL 18のTLS接続とmigrationは受入済み。Clerk productionのDNS/SSL、S3、公開API/worker、実OpenAI、実課金、prodバックアップ復元は未実施。既存ローカル版のdataは変更していない。
+P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3はAppleの処理を完了し、内部グループで利用可能。このbuild 3はClerk移行前のfixture版なので、UI確認専用として扱い再ビルドしない。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。認証はClerk、DBはdevのDocker PostgreSQL 18とprodのCrunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` に確定し、stagingは設けない。Clerk developmentの実メールOTP・セッション復元、Clerk production domainのDNS/SSL、dev PostgreSQL 18、prod PostgreSQL 18のTLS接続とmigration、非公開prod S3の基盤受入は完了。公開API/worker、実OpenAI、実課金、S3実原本保存・prodバックアップ復元は未実施。既存ローカル版のdataは変更していない。
 
 ## 引き継ぎ規則
 
@@ -54,13 +54,14 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - prod DB保護: クラスタ削除保護を有効化し、メンテナンス枠を18:00〜21:00 UTC（日本時間03:00〜06:00）へ固定。初期のIPv4/IPv6全公開ルールを削除し、暫定的に作業端末のIPv4 1件だけへ制限した。マイグレーション後の手動バックアップ `20260908-171430F` が完了したことを確認。公開API配置時は作業端末ルールをAPIの固定egressへ置換する。
 - Crunchy Bridge Production Check: 保護、メンテナンス枠、statement timeout、query log threshold、pgbouncer、Postgresユーザー非使用、主キー枯渇検査は合格。Hobby planのためproduction instanceとHAが不合格で、log drainも未設定。費用増を伴うプラン/HA変更、ログ転送先の選定、別クラスタへのバックアップ復元は未実施であり、App Store公開ゲートG2は未完了。
 - Clerk production準備確認: `clerk doctor --json` は認証・個人applicationへのlink・CLI 3.3.0を正常確認。当初は所有ドメイン未確定のためwizardを停止したが、後続作業で `oxycaster.com` に確定した。
-- 2026-09-09 Clerk production作成: application `わが家のレシピ帖` にproduction instance `ins_3J3T9d1wKbtkYPlVhRH8W9xXwju` を作成し、主ドメインを `oxycaster.com` に設定。OAuth providerは未使用のため追加設定なし。Clerk指定のFrontend API、Account portal、メール、DKIM用CNAME 5件は未作成で、DNS・SSL・mailはいずれもpending。production keyはまだファイルへ取得していない。
+- 2026-09-09 Clerk production受入: production instance `ins_3J3T9d1wKbtkYPlVhRH8W9xXwju` の本番ドメインを `wagaya.oxycaster.com` に変更し、Secondary applicationとして認証基盤も同じサブドメインに隔離した。Route 53へClerk指定CNAME 5件を追加し、DNS・SSL・mailがすべてcomplete。prod設定はdevと同一で、メールコードのみ、primary email必須/変更不可、sessionの `email` claimを確認した。production keyはまだファイルへ取得していない。
+- 2026-09-09 prod S3基盤受入: AWS Tokyoに `prod-wagaya-recipe-book-archives-619330834313` をTerraformで作成。Public Access Block 4項目、BucketOwnerEnforced、AES256 SSE、非TLS拒否のbucket policyを実設定で確認し、匿名head requestは拒否された。バケットversioningは導入していない。API/worker用IAMロール、S3への実HTML/画像保存・削除、孤立object棚卸しは未実施。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
-2. Clerk production instanceは作成済み。Route 53へClerk指定CNAME 5件を追加し、DNS/SSL/mailがreadyになった後、メールコード認証、Native API、`email` session claim、authorized partyを再確認する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
-3. devのDocker PostgreSQL 18とprodのCrunchy Bridge PostgreSQL 18はmigration・PG18・TLS・schema境界まで確認済み。次はAPI/workerのホスティング先と固定egress/secret managerを決め、暫定operator IPを置換する。Production Checkで残るproduction instance/HA/log drain、別クラスタへのバックアップ復元はG2完了前に判断・検証する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を確認する。
+2. Clerk production domainは受入済み。API/workerホスティング先のsecret managerへ新しいproduction publishable/secret keyを保存し、Native API、`email` session claim、authorized partyを本番buildで再確認する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
+3. dev Docker PostgreSQL、prod Crunchy Bridge PostgreSQL、prod S3の基盤受入は完了。次はAPI/workerのホスティング先、最小権限IAMロール、固定egress/secret managerを決め、DBの暫定operator IPを置換する。Production Checkで残るproduction instance/HA/log drain、別クラスタへのバックアップ復元はG2完了前に判断・検証する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を確認する。
 4. iPhoneのTestFlightで `oxycaster@gmail.com` 宛ての招待コードを引き換え、build 3をインストールする。iPhoneとMacを同じTailnetへ接続した状態でfixture版のUIを検証する。その後、商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 
