@@ -10,6 +10,7 @@ data/
 apps/mobile/ios/
 apps/mobile/android/
 infra/.terraform/
+infra/cdk/cdk.out/
 *.tfstate
 *.tfstate.*
 *.tfplan

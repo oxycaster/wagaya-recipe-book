@@ -1,0 +1,39 @@
+services:
+  api:
+    build:
+      context: ./api
+    env_file:
+      - path: .env
+        required: false
+    command: node index.mjs
+    restart: unless-stopped
+    expose:
+      - "4320"
+
+  worker:
+    build:
+      context: ./api
+    env_file:
+      - path: .env
+        required: false
+    command: node worker.mjs
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  caddy-data:
+  caddy-config:

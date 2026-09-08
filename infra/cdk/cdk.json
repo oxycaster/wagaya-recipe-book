@@ -1,0 +1,10 @@
+{
+  "app": "./node_modules/.bin/tsx bin/app.ts",
+  "context": {
+    "region": "ap-northeast-1",
+    "githubRepository": "oxycaster/wagaya-recipe-book",
+    "productionDomain": "api.wagaya.oxycaster.com",
+    "lightsailBlueprintId": "ubuntu_22_04",
+    "lightsailBundleId": "medium_2_0"
+  }
+}
