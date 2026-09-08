@@ -4,7 +4,7 @@
 
 ## 現在地
 
-P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3はAppleの処理を完了し、内部グループで利用可能。このbuild 3はClerk移行前のfixture版なので、UI確認専用として扱い再ビルドしない。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。認証はClerk、DBはdevのDocker PostgreSQL 18とprodのCrunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` に確定し、stagingは設けない。Clerk development instanceの実メールOTPとセッション復元はSimulatorで受入済み。production instance、prod DB接続、公開、実課金、実OpenAI/S3は未実施。既存ローカル版のdataは変更していない。
+P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3はAppleの処理を完了し、内部グループで利用可能。このbuild 3はClerk移行前のfixture版なので、UI確認専用として扱い再ビルドしない。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。認証はClerk、DBはdevのDocker PostgreSQL 18とprodのCrunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` に確定し、stagingは設けない。Clerk development instanceの実メールOTP・セッション復元とdev PostgreSQL 18は受入済み。production instance、prod DB接続、公開、実課金、実OpenAI/S3は未実施。既存ローカル版のdataは変更していない。
 
 ## 引き継ぎ規則
 
@@ -47,12 +47,14 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 認証UIで検出/修正: Clerkの結果エラーコードが `errors[0].code` に入る形式へ対応し、未登録メールがサインアップへ進まず停止する問題を修正。確認コードやトークンは文書・コミットへ記録していない。
 - 実メール認証確認（Clerk development + Simulator + メモリAPI）: 運営者メールで新規登録し、確認メール受信、OTP検証、認証付きAPIでレシピ帖作成まで成功。アプリを完全終了・再起動してもログイン状態を復元し、ログアウト後の既存ユーザー再ログインで同じレシピ帖を再表示できた。物理iPhone、production instance、アカウント削除後のClerkユーザー消去は未検証。
 - 2026-09-09 再検証: `apps/mobile: pnpm check`、`expo install --check`、`pnpm export:ios` が成功。iOS bundleは5.4MB。development APIは4329のbuild 3 fixtureと分離して127.0.0.1:4330、Metroは127.0.0.1:8093で起動した。
+- 2026-09-09 dev PostgreSQL 18受入: Docker Desktopは古いbackendプロセスが残ってAPI socketを作れない状態だったため、停止済みdaemonの残存プロセスを終了して再起動した。`postgres:18-alpine`を取得し、専用volume `infra_recipe-postgres-18` のコンテナを起動。PostgreSQL 18.6、healthy、127.0.0.1:54329だけでlistenしていることを確認した。
+- 実DB検証: `APP_ENV=dev DATABASE_URL=postgresql://recipe:recipe@127.0.0.1:54329/recipe pnpm migrate` → `Schema ready`。`TEST_POSTGRES_URL=postgresql://recipe:recipe@127.0.0.1:54329/recipe pnpm test` → 実PostgreSQL上の専用一時DBで22/22成功。家族権限、台帳の冪等性、残高1の同時予約、lease、削除競合、Clerk JWT、dev/prod DB設定を含む。prodクラスタへの接続・migration・復元は未実施。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
 2. Clerkのproduction instanceへメールコード認証、Native API、`email` session claim、authorized partyを設定する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
-3. devのDocker PostgreSQL 18で複数接続テストを行う。続いてprodの `prod-wagaya-recipe-book` へmigrationし、PG18/TLS/権限、バックアップ復元を確認する。外部環境ではA/B/Cユーザーのアクセス境界、実メールOTP、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。
+3. devのDocker PostgreSQL 18でのmigrationと複数接続テストは完了。続いてprodの `prod-wagaya-recipe-book` へmigrationし、PG18/TLS/権限、バックアップ復元を確認する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。
 4. iPhoneのTestFlightで `oxycaster@gmail.com` 宛ての招待コードを引き換え、build 3をインストールする。iPhoneとMacを同じTailnetへ接続した状態でfixture版のUIを検証する。その後、商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 
@@ -72,4 +74,4 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 
 ## ローカル実行状態（最終検証時）
 
-TestFlight実機確認用の旧デモAPI（127.0.0.1:4329）はlaunchd `com.oxycaster.wagaya-recipe-fixture` で起動し、Tailscale ServeのTailnet限定HTTPS 8443から転送中。Clerk development確認用API（127.0.0.1:4330）とMetro（127.0.0.1:8093）も起動中。Mac停止・再起動後は状態を再確認する。シミュレーターにClerk native development buildをインストール済み。デモの再起動手順はrunbookに記載。両fixtureのDBはメモリ上なのでプロセス再起動で初期化される。
+TestFlight実機確認用の旧デモAPI（127.0.0.1:4329）はlaunchd `com.oxycaster.wagaya-recipe-fixture` で起動し、Tailscale ServeのTailnet限定HTTPS 8443から転送中。Clerk development確認用API（127.0.0.1:4330）とMetro（127.0.0.1:8093）も起動中。dev PostgreSQL 18.6コンテナは127.0.0.1:54329でhealthy。Mac停止・再起動後は状態を再確認する。シミュレーターにClerk native development buildをインストール済み。デモの再起動手順はrunbookに記載。両fixtureのDBはメモリ上なのでプロセス再起動で初期化され、PostgreSQLデータは専用Docker volumeに残る。

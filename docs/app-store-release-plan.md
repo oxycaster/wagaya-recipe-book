@@ -17,6 +17,7 @@
 - iOS 0.1.0 build 3は内部TestFlightで利用可能。
 - ローカルfixtureで認証、一覧、画像、詳細、献立、取り込み、レシピ帖名変更を確認済み。
 - Clerk development instanceで実メールOTPによる新規登録・再ログイン、アプリ再起動後のセッション復元、認証付きAPIでのレシピ帖作成をSimulator確認済み。
+- devのDocker PostgreSQL 18.6へmigrationし、専用一時DBを使う22件の複数接続統合テストを確認済み。
 - APIの権限、取り込み権台帳、ジョブ再開、アカウント削除をPGlite統合テストで確認済み。
 
 ### 公開を止めている事項

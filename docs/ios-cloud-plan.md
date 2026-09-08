@@ -1,6 +1,6 @@
 # iOS・クラウド版 実装計画
 
-作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。Clerk development instanceの実メール認証はSimulatorで受入済み。実クラウド・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
+作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。Clerk development instanceの実メール認証とdev Docker PostgreSQL 18は受入済み。prodクラウド・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
 
