@@ -49,13 +49,13 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 再検証: `apps/mobile: pnpm check`、`expo install --check`、`pnpm export:ios` が成功。iOS bundleは5.4MB。development APIは4329のbuild 3 fixtureと分離して127.0.0.1:4330、Metroは127.0.0.1:8093で起動した。
 - 2026-09-09 dev PostgreSQL 18受入: Docker Desktopは古いbackendプロセスが残ってAPI socketを作れない状態だったため、停止済みdaemonの残存プロセスを終了して再起動した。`postgres:18-alpine`を取得し、専用volume `infra_recipe-postgres-18` のコンテナを起動。PostgreSQL 18.6、healthy、127.0.0.1:54329だけでlistenしていることを確認した。
 - 実DB検証: `APP_ENV=dev DATABASE_URL=postgresql://recipe:recipe@127.0.0.1:54329/recipe pnpm migrate` → `Schema ready`。`TEST_POSTGRES_URL=postgresql://recipe:recipe@127.0.0.1:54329/recipe pnpm test` → 実PostgreSQL上の専用一時DBで22/22成功。家族権限、台帳の冪等性、残高1の同時予約、lease、削除競合、Clerk JWT、dev/prod DB設定を含む。prodクラスタへの接続・migration・復元は未実施。
-- 2026-09-09 prod DB作成前確認: Crunchy Bridgeの個人team `wagaya-recipe-book` にクラスタが存在しないことを確認。作成画面で `prod-wagaya-recipe-book`、AWS Tokyo、PostgreSQL 18、Hobby-0（0.5GB / 2 vCPU）、10GB、HAなしを準備した。表示料金は月額12.70 USD。継続課金が始まるため作成確定は行わず、ユーザー承認待ち。
+- 2026-09-09 prod DB作成開始: Crunchy Bridgeの個人team `wagaya-recipe-book` にクラスタが存在しないことを確認。ユーザー承認後、`prod-wagaya-recipe-book`、AWS Tokyo、PostgreSQL 18、Hobby-0（0.5GB / 2 vCPU）、10GB、HAなし、月額12.70 USDで作成を開始した。チームに支払い方法がないためStripeの支払い情報入力画面で停止しており、クラスタはまだ作成されていない。カード情報は入力・取得・保存していない。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
 2. Clerkのproduction instanceへメールコード認証、Native API、`email` session claim、authorized partyを設定する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
-3. devのDocker PostgreSQL 18でのmigrationと複数接続テストは完了。ユーザー承認後に月額12.70 USDの構成でprodの `prod-wagaya-recipe-book` を作成し、migration、PG18/TLS/権限、バックアップ復元を確認する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。
+3. devのDocker PostgreSQL 18でのmigrationと複数接続テストは完了。Crunchy Bridgeの支払い方法をユーザー自身が登録してクラスタ作成を完了した後、prodの `prod-wagaya-recipe-book` へmigrationし、PG18/TLS/権限、バックアップ復元を確認する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。
 4. iPhoneのTestFlightで `oxycaster@gmail.com` 宛ての招待コードを引き換え、build 3をインストールする。iPhoneとMacを同じTailnetへ接続した状態でfixture版のUIを検証する。その後、商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 
