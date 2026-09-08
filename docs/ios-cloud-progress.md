@@ -37,11 +37,12 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - App Store Connectにアプリ `わが家のレシピ帖`（ASC App ID `6809590497`）と内部グループ `Team (Expo)` を作成し、`oxycaster@gmail.com` を有効化。EAS submission `c7e8ecec-148e-4166-a6f3-34c5a7694628` は `FINISHED` となり、バイナリのアップロードに成功した。現在はApple側の処理待ちで、TestFlight上でのインストール・起動はまだ未検証。
 - 初回の自動提出はテスト説明文（changelog）がExpo Enterprise限定だったため提出予約だけ失敗した。ビルド自体への影響はなく、説明文を外した `eas submit --platform ios --id f82a3a9a-b524-4731-baa3-7a0fbd6d8efc --profile testflight` で提出を完了した。
 - 2026-09-08 TestFlight配信確認: App Store Connectでbuild 3が「提出準備完了」、内部グループ `Team (Expo)` に1ビルド・1テスターが設定されていることを確認。`oxycaster@gmail.com` の状態は「招待済み」で、同アドレスのGmailにAppleの招待メールが到着済み。招待コードは秘密情報として文書・コミットに保存しない。
+- 2026-09-08 公開計画: `docs/app-store-release-plan.md` を追加。内部実機確認から公開仕様、本番クラウド、実OpenAI、課金、法務/Privacy、ストア素材、production TestFlight、App Review、公開後確認までをM0〜M7に分割し、G0〜G7の公開可否ゲートと即時中止条件を定義した。公開作業自体は未着手。
 
 ## 次のエージェントが行うこと
 
-1. `git status` とこの文書を読む。実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。TestFlight提出記録を追記した本書だけが後続コミット対象。`.codex/environments/environment.toml` は本実装に含めていない。
-2. `docs/cloud/runbook.md` の順に、このアプリ専用のSupabase/DB、S3/IAM、OpenAI、RevenueCat/Appleを設定する。既存の別製品の環境を流用しない。env例のキーは未設定で、利用者にAPIキーを取得させる設計ではない。
+1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
+2. `docs/app-store-release-plan.md` のM0から順に進める。最初にbuild 3の実機UI確認と、販売地域・対応端末・価格・問い合わせ先・保持期間を確定する。
 3. 外部環境で、A/B/Cユーザーのアクセス境界、実メールOTP、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。実PostgreSQLのロック検証はrunbookのTEST_POSTGRES_URL手順を使う。
 4. iPhoneのTestFlightで `oxycaster@gmail.com` 宛ての招待コードを引き換え、build 3をインストールする。iPhoneとMacを同じTailnetへ接続した状態でfixture版のUIを検証する。その後、商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。

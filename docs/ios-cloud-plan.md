@@ -1,6 +1,6 @@
 # iOS・クラウド版 実装計画
 
-作成: 2026-09-06 / 更新: 2026-09-08 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight実機UI確認を準備中。実クラウド・実課金の受入と公開は未実施。
+作成: 2026-09-06 / 更新: 2026-09-08 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。実クラウド・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
 
@@ -41,6 +41,8 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 5. [ ] P5 外部環境での受入: 実メールOTP、S3、実OpenAI、RevenueCat Sandbox、TestFlight実機、削除/返金/復旧、審査資料。
 
 P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、Tailnet内のローカルfixtureへ接続する。続いて専用のSupabase/PostgreSQL/S3/API/worker/OpenAI/RevenueCat環境へ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実クラウド受入済みとは扱わない。
+
+P5以降の公開作業は `docs/app-store-release-plan.md` のM0〜M7とG0〜G7で管理する。App Reviewへ提出するproduction buildは、fixture用 `testflight` profileと分離し、公開可否ゲートをすべて満たすこと。
 
 実装済みと実サービス検証済みは区別する。進捗は docs/ios-cloud-progress.md に、各区切りの変更・実行コマンド・結果・未完了・次の手順を追記する。
 

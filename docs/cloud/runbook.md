@@ -1,6 +1,6 @@
 # クラウド・iOS版 起動と公開手順
 
-設計: [ios-cloud-plan.md](../ios-cloud-plan.md) / 最新の状況: [ios-cloud-progress.md](../ios-cloud-progress.md)
+設計: [ios-cloud-plan.md](../ios-cloud-plan.md) / 公開計画: [app-store-release-plan.md](../app-store-release-plan.md) / 最新の状況: [ios-cloud-progress.md](../ios-cloud-progress.md)
 
 ## ローカル検証（外部課金なし）
 
