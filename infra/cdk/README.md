@@ -29,6 +29,8 @@ production stackの出力 `GitHubDeployRoleArn` をGitHub repository environment
 
 `ApplicationSettingsSecretArn` はAWS Secrets ManagerのJSON secretである。以下の値を入力する。`DATABASE_SSL_CA` は改行を `\\n` として保存できる。AWS資格情報とS3 bucket名は `RuntimeCredentialsSecretArn` にCDKが保存するため、ここへ重複して保存しない。
 
+デプロイ時にはAPI用の `.env.api` とworker用の `.env.worker` を生成する。OpenAI APIキーとClerk Secret Keyはworkerへだけ渡し、Webhook秘密鍵はAPIへだけ渡す。
+
 ```json
 {
   "APP_ENV": "prod",

@@ -3,7 +3,7 @@ services:
     build:
       context: ./api
     env_file:
-      - path: .env
+      - path: .env.api
         required: false
     command: node index.mjs
     restart: unless-stopped
@@ -14,7 +14,7 @@ services:
     build:
       context: ./api
     env_file:
-      - path: .env
+      - path: .env.worker
         required: false
     command: node worker.mjs
     restart: unless-stopped
@@ -22,7 +22,7 @@ services:
   caddy:
     image: caddy:2.10.2-alpine
     environment:
-      API_DOMAIN: ${API_DOMAIN}
+      API_DOMAIN: api.wagaya.oxycaster.com
     ports:
       - "80:80"
       - "443:443"

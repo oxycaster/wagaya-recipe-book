@@ -82,8 +82,26 @@ jobs:
           mkdir -p .deploy-tmp/runtime
           aws secretsmanager get-secret-value --secret-id "$runtime_secret" --query SecretString --output text > .deploy-tmp/runtime-aws.json
           aws secretsmanager get-secret-value --secret-id "$settings_secret" --query SecretString --output text > .deploy-tmp/settings.json
-          jq -s '.[0] * .[1] + {API_DOMAIN: "api.wagaya.oxycaster.com"}' .deploy-tmp/runtime-aws.json .deploy-tmp/settings.json |
-            jq -r 'to_entries[] | "\(.key)=\(.value|tostring)"' > .deploy-tmp/runtime/.env
+          jq -s '.[0] * .[1]' .deploy-tmp/runtime-aws.json .deploy-tmp/settings.json > .deploy-tmp/merged-settings.json
+          jq -r '
+            with_entries(select(.key | IN(
+              "APP_ENV", "DATABASE_URL", "DATABASE_SSL_CA",
+              "CLERK_ISSUER_URL", "CLERK_AUTHORIZED_PARTIES",
+              "AWS_REGION", "S3_BUCKET", "S3_ENDPOINT",
+              "REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_APP_ID",
+              "REVENUECAT_ENVIRONMENT", "REVENUECAT_PRODUCTS"
+            ))) |
+            to_entries[] | "\(.key)=\(.value|tostring)"
+          ' .deploy-tmp/merged-settings.json > .deploy-tmp/runtime/.env.api
+          jq -r '
+            with_entries(select(.key | IN(
+              "APP_ENV", "DATABASE_URL", "DATABASE_SSL_CA",
+              "CLERK_ISSUER_URL", "CLERK_AUTHORIZED_PARTIES",
+              "AWS_REGION", "S3_BUCKET", "S3_ENDPOINT",
+              "CLERK_SECRET_KEY", "OPENAI_API_KEY", "OPENAI_MODEL"
+            ))) |
+            to_entries[] | "\(.key)=\(.value|tostring)"
+          ' .deploy-tmp/merged-settings.json > .deploy-tmp/runtime/.env.worker
           cp infra/runtime/compose.yaml infra/runtime/Caddyfile .deploy-tmp/runtime/
           tar -C services/api -czf .deploy-tmp/api.tgz .
           access=$(aws lightsail get-instance-access-details --instance-name "$instance_name")
@@ -95,8 +113,8 @@ jobs:
           chmod 600 .deploy-tmp/key
           ssh_options=(-i .deploy-tmp/key -o CertificateFile=.deploy-tmp/key-cert.pub -o UserKnownHostsFile=.deploy-tmp/known_hosts -o StrictHostKeyChecking=yes)
           scp "${ssh_options[@]}" .deploy-tmp/api.tgz "$user@$host:/tmp/wagaya-api.tgz"
-          scp "${ssh_options[@]}" .deploy-tmp/runtime/.env .deploy-tmp/runtime/compose.yaml .deploy-tmp/runtime/Caddyfile "$user@$host:/tmp/"
-          ssh "${ssh_options[@]}" "$user@$host" 'sudo install -d -m 0750 /opt/wagaya-recipe-book/api && sudo tar -xzf /tmp/wagaya-api.tgz -C /opt/wagaya-recipe-book/api && sudo install -m 0600 /tmp/.env /opt/wagaya-recipe-book/.env && sudo install -m 0644 /tmp/compose.yaml /tmp/Caddyfile /opt/wagaya-recipe-book/ && sudo docker compose -f /opt/wagaya-recipe-book/compose.yaml --project-directory /opt/wagaya-recipe-book up -d --build --remove-orphans'
+          scp "${ssh_options[@]}" .deploy-tmp/runtime/.env.api .deploy-tmp/runtime/.env.worker .deploy-tmp/runtime/compose.yaml .deploy-tmp/runtime/Caddyfile "$user@$host:/tmp/"
+          ssh "${ssh_options[@]}" "$user@$host" 'sudo install -d -m 0750 /opt/wagaya-recipe-book/api && sudo tar -xzf /tmp/wagaya-api.tgz -C /opt/wagaya-recipe-book/api && sudo install -m 0600 /tmp/.env.api /tmp/.env.worker /opt/wagaya-recipe-book/ && sudo install -m 0644 /tmp/compose.yaml /tmp/Caddyfile /opt/wagaya-recipe-book/ && sudo docker compose -f /opt/wagaya-recipe-book/compose.yaml --project-directory /opt/wagaya-recipe-book up -d --build --remove-orphans'
           ssh "${ssh_options[@]}" "$user@$host" 'curl --fail --silent --show-error http://127.0.0.1:4320/health'
 
       - name: Read production static IP
