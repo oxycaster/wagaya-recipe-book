@@ -53,6 +53,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 prod DB初期受入: ユーザーによる支払い情報登録後、Crunchy Bridgeクラスタ `prod-wagaya-recipe-book`（cluster ID `wzxlazzkdfbqlntlndganmzn4q`）がreadyになった。`application` ロールとチームCAを使い `APP_ENV=prod pnpm migrate` → `Schema ready`。PostgreSQL 18.6、TLS 1.3、`recipe_cloud` の12テーブル、`public` の業務テーブル0件、実行時search_pathが `recipe_cloud` であることを実接続で確認した。接続URL、CA、パスワードは文書・リポジトリ・ログへ保存していない。
 - prod DB保護: クラスタ削除保護を有効化し、メンテナンス枠を18:00〜21:00 UTC（日本時間03:00〜06:00）へ固定。初期のIPv4/IPv6全公開ルールを削除し、暫定的に作業端末のIPv4 1件だけへ制限した。マイグレーション後の手動バックアップ `20260908-171430F` が完了したことを確認。公開API配置時は作業端末ルールをAPIの固定egressへ置換する。
 - Crunchy Bridge Production Check: 保護、メンテナンス枠、statement timeout、query log threshold、pgbouncer、Postgresユーザー非使用、主キー枯渇検査は合格。Hobby planのためproduction instanceとHAが不合格で、log drainも未設定。費用増を伴うプラン/HA変更、ログ転送先の選定、別クラスタへのバックアップ復元は未実施であり、App Store公開ゲートG2は未完了。
+- Clerk production準備確認: `clerk doctor --json` は認証・個人applicationへのlink・CLI 3.3.0を正常確認。`clerk deploy status --mode agent` ではproduction instance未作成。作成には所有する本番ドメインとDNSレコード追加権限が必要なため、ドメイン確定待ち。途中のwizardは停止し、production instanceやDNSは変更していない。
 
 ## 次のエージェントが行うこと
 
