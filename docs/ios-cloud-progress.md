@@ -67,6 +67,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 本番runtime設定準備: production ClerkのFrontend API hostが `clerk.wagaya.oxycaster.com` であり、JWKS endpointから公開鍵1件を取得できることを確認した。Crunchy Bridge接続URL・チームCA・Clerk Secret Keyを一時ファイルだけで取得し、production `ApplicationSettings` secretへ `APP_ENV`、DB TLS、Clerk issuer/authorized parties/secretを保存した。秘密値は表示・コミットしていない。OpenAI API key/modelとRevenueCatのWebhook secret、App ID、商品対応表は未作成のため、runtime deployはまだ実行していない。
 - 2026-09-09 runtime秘密分離: ComposeとGitHub Actionsを `.env.api` / `.env.worker` に分離した。APIにはRevenueCat設定だけを渡し、workerにはOpenAI API keyとClerk Secret Keyだけを渡す。`docker compose -f infra/runtime/compose.yaml config` と `git diff --check` に成功。実Lightsail更新は外部設定の完了後に行う。
 - 2026-09-09 公開設定の補完: production ClerkでNative APIが有効なことを読み取り確認した。公開計画に合わせて `EXPO_PUBLIC_SUPPORT_URL` をproduction build必須のHTTPS設定に追加し、ログイン画面と設定画面にサポートリンクを追加した。正式URL、iOS Bundle ID/Team IDのClerk Native Application登録、実機認証は未確認である。
+- 2026-09-09 Clerk iOS登録: production ClerkのNative applicationsへApp ID prefix `N8FN3LCG22` とbundle ID `com.oxycastersorganization.wagayarecipe` を登録した。Native APIは有効のまま、mobile SSO redirectには `com.oxycastersorganization.wagayarecipe://callback` が追加された。`clerk.wagaya.oxycaster.com/.well-known/apple-app-site-association` のweb credentialsに同じアプリIDが入ることを確認した。productionの実メール認証とAPI JWT受入は公開runtime後に実機で検証する。
 
 ## 次のエージェントが行うこと
 
