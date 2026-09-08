@@ -17,6 +17,7 @@
 - iOS 0.1.0 build 3は内部TestFlightで利用可能。
 - ローカルfixtureで認証、一覧、画像、詳細、献立、取り込み、レシピ帖名変更を確認済み。
 - Clerk development instanceで実メールOTPによる新規登録・再ログイン、アプリ再起動後のセッション復元、認証付きAPIでのレシピ帖作成をSimulator確認済み。
+- Clerk production instanceを作成し、主ドメインを `oxycaster.com` に設定済み。DNS・SSL・メール検証はCNAME追加待ち。
 - devのDocker PostgreSQL 18.6へmigrationし、専用一時DBを使う22件の複数接続統合テストを確認済み。
 - prodのCrunchy Bridge PostgreSQL 18.6へTLS 1.3で接続し、`recipe_cloud` schemaのmigration、削除保護、定期メンテナンス枠、全公開firewallの撤去、手動バックアップを確認済み。
 - APIの権限、取り込み権台帳、ジョブ再開、アカウント削除をPGlite統合テストで確認済み。
@@ -24,7 +25,7 @@
 ### 公開を止めている事項
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
-- prodのClerk、実S3、公開API/worker、実OpenAIは未接続。Crunchy BridgeはHobby plan・HAなし・log drain未設定で、別クラスタへのバックアップ復元も未検証。
+- prod ClerkのDNS/SSLと実メール認証、実S3、公開API/worker、実OpenAIは未接続。Crunchy BridgeはHobby plan・HAなし・log drain未設定で、別クラスタへのバックアップ復元も未検証。
 - RevenueCatとApp Store ConnectのConsumable商品、Sandbox購入、返金、通知再送は未検証。
 - プライバシーポリシー、利用規約、サポートページの正式URLがない。
 - App Privacy、年齢区分、コンテンツ権利、価格、販売地域、ストア説明・スクリーンショットが未確定。
