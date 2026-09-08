@@ -23,7 +23,7 @@
 ### 公開を止めている事項
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
-- prodのClerk、Crunchy Bridge PostgreSQL、実S3、公開API/worker、実OpenAIは未接続。
+- prodのClerk、Crunchy Bridge PostgreSQL、実S3、公開API/worker、実OpenAIは未接続。Crunchy Bridgeクラスタは未作成。
 - RevenueCatとApp Store ConnectのConsumable商品、Sandbox購入、返金、通知再送は未検証。
 - プライバシーポリシー、利用規約、サポートページの正式URLがない。
 - App Privacy、年齢区分、コンテンツ権利、価格、販売地域、ストア説明・スクリーンショットが未確定。
