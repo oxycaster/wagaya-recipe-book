@@ -405,6 +405,13 @@ function LegalLinks() {
           onPress={() => void Linking.openURL(settings.terms)}
         />
       )}
+      {!!settings.support && (
+        <Button
+          secondary
+          label="サポート"
+          onPress={() => void Linking.openURL(settings.support)}
+        />
+      )}
     </View>
   )
 }

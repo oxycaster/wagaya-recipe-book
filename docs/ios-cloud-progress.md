@@ -66,6 +66,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 CDK DNS/dev基盤: `oxycaster` accountをCDK bootstrap後、`WagayaRecipeBookDns-production` を作成。親zoneに既存のGitHub OIDC providerがあったため、DNS stackは新規作成せず既存providerを参照するよう修正した。`api.wagaya.oxycaster.com` A record（TTL 300）がproduction static IPを指し、Route 53とpublic DNSの双方で一致を確認。develop accountもCDK bootstrapし、`WagayaRecipeBook-develop` の非公開S3、runtime credentials/application settings secret、GitHub OIDC roleを作成。develop bucketもPublic Access Block 4項目とBucketOwnerEnforcedを確認した。GitHub repository environment `production` にproduction runtime/DNS role ARN、`develop` にdevelop runtime role ARNを設定した。Actionsの実行とOIDCによる更新は未検証。
 - 2026-09-09 本番runtime設定準備: production ClerkのFrontend API hostが `clerk.wagaya.oxycaster.com` であり、JWKS endpointから公開鍵1件を取得できることを確認した。Crunchy Bridge接続URL・チームCA・Clerk Secret Keyを一時ファイルだけで取得し、production `ApplicationSettings` secretへ `APP_ENV`、DB TLS、Clerk issuer/authorized parties/secretを保存した。秘密値は表示・コミットしていない。OpenAI API key/modelとRevenueCatのWebhook secret、App ID、商品対応表は未作成のため、runtime deployはまだ実行していない。
 - 2026-09-09 runtime秘密分離: ComposeとGitHub Actionsを `.env.api` / `.env.worker` に分離した。APIにはRevenueCat設定だけを渡し、workerにはOpenAI API keyとClerk Secret Keyだけを渡す。`docker compose -f infra/runtime/compose.yaml config` と `git diff --check` に成功。実Lightsail更新は外部設定の完了後に行う。
+- 2026-09-09 公開設定の補完: production ClerkでNative APIが有効なことを読み取り確認した。公開計画に合わせて `EXPO_PUBLIC_SUPPORT_URL` をproduction build必須のHTTPS設定に追加し、ログイン画面と設定画面にサポートリンクを追加した。正式URL、iOS Bundle ID/Team IDのClerk Native Application登録、実機認証は未確認である。
 
 ## 次のエージェントが行うこと
 

@@ -7,6 +7,7 @@ export const settings = {
   revenuecat: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY || '',
   privacy: process.env.EXPO_PUBLIC_PRIVACY_URL || '',
   terms: process.env.EXPO_PUBLIC_TERMS_URL || '',
+  support: process.env.EXPO_PUBLIC_SUPPORT_URL || '',
 }
 export const configured = Boolean(
   settings.api && settings.clerkPublishable,

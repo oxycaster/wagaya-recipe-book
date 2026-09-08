@@ -7,6 +7,7 @@ if (process.env.EAS_BUILD_PROFILE === 'production') {
     'EXPO_PUBLIC_REVENUECAT_IOS_KEY',
     'EXPO_PUBLIC_PRIVACY_URL',
     'EXPO_PUBLIC_TERMS_URL',
+    'EXPO_PUBLIC_SUPPORT_URL',
   ]) {
     if (
       !process.env[key] ||
@@ -19,6 +20,7 @@ if (process.env.EAS_BUILD_PROFILE === 'production') {
     'EXPO_PUBLIC_API_URL',
     'EXPO_PUBLIC_PRIVACY_URL',
     'EXPO_PUBLIC_TERMS_URL',
+    'EXPO_PUBLIC_SUPPORT_URL',
   ]) {
     if (!process.env[key]?.startsWith('https://'))
       throw new Error(`HTTPS required for ${key}`)
