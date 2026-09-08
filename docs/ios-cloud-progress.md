@@ -56,6 +56,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - Clerk production準備確認: `clerk doctor --json` は認証・個人applicationへのlink・CLI 3.3.0を正常確認。当初は所有ドメイン未確定のためwizardを停止したが、後続作業で `oxycaster.com` に確定した。
 - 2026-09-09 Clerk production受入: production instance `ins_3J3T9d1wKbtkYPlVhRH8W9xXwju` の本番ドメインを `wagaya.oxycaster.com` に変更し、Secondary applicationとして認証基盤も同じサブドメインに隔離した。Route 53へClerk指定CNAME 5件を追加し、DNS・SSL・mailがすべてcomplete。prod設定はdevと同一で、メールコードのみ、primary email必須/変更不可、sessionの `email` claimを確認した。production keyはまだファイルへ取得していない。
 - 2026-09-09 prod S3基盤受入: AWS Tokyoに `prod-wagaya-recipe-book-archives-619330834313` をTerraformで作成。Public Access Block 4項目、BucketOwnerEnforced、AES256 SSE、非TLS拒否のbucket policyを実設定で確認し、匿名head requestは拒否された。バケットversioningは導入していない。API/worker用IAMロール、S3への実HTML/画像保存・削除、孤立object棚卸しは未実施。
+- Terraform stateは現時点でignoredの `infra/terraform.tfstate` にだけ存在する。次のインフラ変更前に、専用のversioning有効・暗号化済みstate bucketとS3 backendへ移行し、stateを共有可能にする。stateやcredentialをGitへ追加しない。
 
 ## 次のエージェントが行うこと
 
