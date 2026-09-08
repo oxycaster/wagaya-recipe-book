@@ -30,10 +30,10 @@ mise exec -- pnpm export:ios
 Clerk development instanceの実メール認証と、メモリ上だけのAPIサーバーを組み合わせて画面を確認する。本番Dockerにtestディレクトリは含めない。`services/api/.env` にdevelopment instanceの `CLERK_ISSUER_URL` を設定してから起動する。初回ログイン後は空の状態なので、画面からレシピ帖を作成する。
 
 ```sh
-# ターミナル1: services/api
-mise exec -- node --env-file-if-exists=.env test/demo-server.mjs
+# ターミナル1: services/api。build 3用fixtureの4329と分離する
+DEMO_PORT=4330 mise exec -- node --env-file-if-exists=.env test/demo-server.mjs
 # ターミナル2: apps/mobile
-NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4329 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=<development publishable key> mise exec -- pnpm exec expo start --dev-client --localhost --port 8093
+NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4330 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=<development publishable key> mise exec -- pnpm exec expo start --dev-client --localhost --port 8093
 # ターミナル3: apps/mobile
 mise exec -- pnpm exec expo run:ios --no-bundler
 ```
@@ -41,6 +41,8 @@ mise exec -- pnpm exec expo run:ios --no-bundler
 開発クライアントの接続先は `http://127.0.0.1:8093`。自分のメールアドレスへ届くClerkの確認コードでログインする。APIデータはプロセス終了時に消え、課金・S3・OpenAIは実行しない。development instanceの成功をproduction instanceの検証済みとは扱わない。終了時は各プロセスをCtrl-Cで停止する。
 
 `expo run:ios --no-bundler` が別の8081ポートを開いた場合は、開発クライアントで上記8093を選ぶ。localhostがIPv6のみでlistenされる環境では上記NODE_OPTIONSを使う（端末が要求する127.0.0.1と一致させる）。
+
+`@clerk/expo` を追加・更新した後は、ignoredのnative生成物にClerk pod/packageを反映するため `pnpm exec expo prebuild --platform ios --clean` を実行してからnative buildする。現在の生成結果はiOS deployment target 17.0。React本体と異なるpatch版の `react-dom` が解決されると起動時に互換性エラーになるため、`react` と `react-dom` は同じ19.2.0へ固定する。
 
 ## 内部TestFlightの実機UI確認用fixture
 

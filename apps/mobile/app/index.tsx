@@ -262,6 +262,14 @@ function clerkError(value: unknown) {
   )
 }
 
+function clerkErrorCode(value: unknown) {
+  const candidate = value as {
+    code?: string
+    errors?: Array<{ code?: string }>
+  }
+  return candidate.errors?.[0]?.code || candidate.code
+}
+
 function Login() {
   const { signIn } = useSignIn(),
     { signUp } = useSignUp()
@@ -316,7 +324,9 @@ function Login() {
                     await signIn.emailCode.sendCode({ emailAddress })
                   if (sendError) throw clerkError(sendError)
                   setAttempt('sign-in')
-                } else if (error.code === 'form_identifier_not_found') {
+                } else if (
+                  clerkErrorCode(error) === 'form_identifier_not_found'
+                ) {
                   const { error: createError } = await signUp.create({
                     emailAddress,
                   })

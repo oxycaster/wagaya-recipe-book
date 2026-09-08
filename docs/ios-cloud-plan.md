@@ -1,6 +1,6 @@
 # iOS・クラウド版 実装計画
 
-作成: 2026-09-06 / 更新: 2026-09-08 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。実クラウド・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
+作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。Clerk development instanceの実メール認証はSimulatorで受入済み。実クラウド・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
 
@@ -43,6 +43,8 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、devのTailnet内ローカルfixtureへ接続する。続いてprodのClerk、Crunchy Bridge PostgreSQL 18、S3、API/worker、OpenAI、RevenueCatへ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実クラウド受入済みとは扱わない。
 
 P5以降の公開作業は `docs/app-store-release-plan.md` のM0〜M7とG0〜G7で管理する。App Reviewへ提出するproduction buildは、fixture用 `testflight` profileと分離し、公開可否ゲートをすべて満たすこと。
+
+現在の `@clerk/expo` を含むnative development buildはiOS deployment target 17.0で生成される。初回公開の最低OSはiOS 17以上を前提にM1で確定し、それより古いOSを対象にする場合は認証SDK構成を変更してnative buildと認証受入をやり直す。
 
 実装済みと実サービス検証済みは区別する。進捗は docs/ios-cloud-progress.md に、各区切りの変更・実行コマンド・結果・未完了・次の手順を追記する。
 

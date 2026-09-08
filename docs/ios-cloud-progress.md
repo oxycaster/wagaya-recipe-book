@@ -1,10 +1,10 @@
 # 進捗・引き継ぎ
 
-更新: 2026-09-08
+更新: 2026-09-09
 
 ## 現在地
 
-P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3はAppleの処理を完了し、内部グループで利用可能。このbuild 3はClerk移行前のfixture版なので、UI確認専用として扱い再ビルドしない。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。認証はClerk、DBはdevのDocker PostgreSQL 18とprodのCrunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` に確定し、stagingは設けない。Clerk development instanceは設定済み。production instance、prod DB接続、公開、実課金、実メール、実OpenAI/S3は未実施。既存ローカル版のdataは変更していない。
+P1〜P4のローカル実装・検証まで完了。iOS native simulator build成功。P5の内部TestFlight用ビルド番号3はAppleの処理を完了し、内部グループで利用可能。このbuild 3はClerk移行前のfixture版なので、UI確認専用として扱い再ビルドしない。Expo/EASは個人側の `oxycaster` で認証し、プロジェクトは `@oxycasters-organization/wagaya-recipe`。認証はClerk、DBはdevのDocker PostgreSQL 18とprodのCrunchy Bridge PostgreSQL 18 `prod-wagaya-recipe-book` に確定し、stagingは設けない。Clerk development instanceの実メールOTPとセッション復元はSimulatorで受入済み。production instance、prod DB接続、公開、実課金、実OpenAI/S3は未実施。既存ローカル版のdataは変更していない。
 
 ## 引き継ぎ規則
 
@@ -41,13 +41,17 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-08 DB/環境設計更新: 環境をdev/prodの2つに限定。devはDocker PostgreSQL 18、prodはCrunchy Bridge PostgreSQL 18クラスタ `prod-wagaya-recipe-book` とした。Composeを18へ更新し、17系データ領域の直接再利用を避ける `recipe-postgres-18` volumeへ変更。APIは `APP_ENV` を検証し、prodではsecret managerから渡すCrunchy BridgeチームCAを必須にして証明書検証を有効化した。実クラスタへの接続、migration、バックアップ復元は未実施。
 - DB設定検証: `cd services/api && mise exec -- pnpm test` → 22/22成功。devでTLSを暗黙に有効化しないこと、prodでCA必須・証明書検証有効、未知の環境名拒否を含む。`docker compose -f infra/compose.yaml config` と `git diff --check` も成功。実コンテナ起動はDocker Desktop停止中（`docker.sock` なし）のため未実施であり、PostgreSQL 18への実接続成功とは扱わない。
 - 2026-09-08 Clerk移行: 認証基盤をClerkに確定。Expoへ `@clerk/expo` とSecureStore token cacheを追加し、既存画面のメールOTPサインイン/初回サインアップをClerk custom flowへ変更。APIはRS256署名、issuer、期限、authorized party、Clerk user ID、email custom claimを検証する。workerの退会処理は `@clerk/backend` のユーザー削除へ変更。DB/RevenueCatのuser ID列をClerkの文字列IDへ変更し、旧認証SDK依存を削除した。
-- Clerk development設定: 個人側 `oxycaster@gmail.com` の専用application `わが家のレシピ帖`（application ID `app_3J2juS9C8sR1rgcUe5PqwVskwsS`、development instance `ins_3J2juSKSvtjScLxuXWCAegfg2vh`）を作成してリポジトリへリンク。メールコードのみ、パスワード/Googleログイン無効、primary email変更不可、session tokenの `email` claim、Native API有効をCLIで確認した。Publishable Keyは公開設定としてdev/TestFlightへ使用し、Secret Keyはignoredのローカルenvへ保存した。実メール受信と実機ログインは未検証。企業側Clerk workspaceへ誤作成した同名application `app_3J2jPxM3Di6eKuSNRMqIAovb4H1` は、ユーザー承認後に削除し、企業側のapplication一覧から消えたことを確認した。
-- Clerk移行検証: `services/api: pnpm test` → 22/22、`apps/mobile: pnpm check`、`expo install --check`、`pnpm export:ios` が成功。iOS bundleは5.4MB。実際のClerk形式のユーザーIDで家族権限と所有権移譲を検証し、所有権移譲APIに残っていたUUID検証も文字列IDへ修正した。development issuerを読み込んだメモリAPIは別ポートで起動し、`/health` 200を確認。コード・追跡対象文書・lockfileから旧認証サービスの依存と参照が0件であることも確認。Clerkのproduction instance、prod秘密設定、実メール、端末セッション復元、退会後のClerkユーザー削除は未検証。
+- Clerk development設定: 個人側 `oxycaster@gmail.com` の専用application `わが家のレシピ帖`（application ID `app_3J2juS9C8sR1rgcUe5PqwVskwsS`、development instance `ins_3J2juSKSvtjScLxuXWCAegfg2vh`）を作成してリポジトリへリンク。メールコードのみ、パスワード/Googleログイン無効、primary email変更不可、session tokenの `email` claim、Native API有効をCLIで確認した。Publishable Keyは公開設定としてdev/TestFlightへ使用し、Secret Keyはignoredのローカルenvへ保存した。この時点では実メール受信と実機ログインは未検証で、9月9日にSimulator受入を実施した。企業側Clerk workspaceへ誤作成した同名application `app_3J2jPxM3Di6eKuSNRMqIAovb4H1` は、ユーザー承認後に削除し、企業側のapplication一覧から消えたことを確認した。
+- Clerk移行検証: `services/api: pnpm test` → 22/22、`apps/mobile: pnpm check`、`expo install --check`、`pnpm export:ios` が成功。iOS bundleは5.4MB。実際のClerk形式のユーザーIDで家族権限と所有権移譲を検証し、所有権移譲APIに残っていたUUID検証も文字列IDへ修正した。development issuerを読み込んだメモリAPIは別ポートで起動し、`/health` 200を確認。コード・追跡対象文書・lockfileから旧認証サービスの依存と参照が0件であることも確認。この時点ではClerkの実メールと端末セッション復元は未検証で、9月9日にSimulator受入を実施した。production instance、prod秘密設定、退会後のClerkユーザー削除は引き続き未検証。
+- 2026-09-09 Clerk development受入: `expo prebuild --platform ios --clean` でClerk native packageを含むiOS生成物を作り直し、iPhone 17e / iOS 26.5 Simulator向けのnative buildに成功（0 errors / dependency warnings 2件）。生成されたdeployment targetは17.0。起動時に検出したReact 19.2.0 / React DOM 19.2.8の不一致は `react-dom` 19.2.0固定で解消した。
+- 認証UIで検出/修正: Clerkの結果エラーコードが `errors[0].code` に入る形式へ対応し、未登録メールがサインアップへ進まず停止する問題を修正。確認コードやトークンは文書・コミットへ記録していない。
+- 実メール認証確認（Clerk development + Simulator + メモリAPI）: 運営者メールで新規登録し、確認メール受信、OTP検証、認証付きAPIでレシピ帖作成まで成功。アプリを完全終了・再起動してもログイン状態を復元し、ログアウト後の既存ユーザー再ログインで同じレシピ帖を再表示できた。物理iPhone、production instance、アカウント削除後のClerkユーザー消去は未検証。
+- 2026-09-09 再検証: `apps/mobile: pnpm check`、`expo install --check`、`pnpm export:ios` が成功。iOS bundleは5.4MB。development APIは4329のbuild 3 fixtureと分離して127.0.0.1:4330、Metroは127.0.0.1:8093で起動した。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
-2. Clerkのproduction instanceへメールコード認証、Native API、`email` session claim、authorized partyを設定する。development instanceでは新しいdevelopment buildを使い、登録・再送・ログイン・再起動・退会を実機確認する。
+2. Clerkのproduction instanceへメールコード認証、Native API、`email` session claim、authorized partyを設定する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
 3. devのDocker PostgreSQL 18で複数接続テストを行う。続いてprodの `prod-wagaya-recipe-book` へmigrationし、PG18/TLS/権限、バックアップ復元を確認する。外部環境ではA/B/Cユーザーのアクセス境界、実メールOTP、実HTMLの保存と抽出、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を検証する。
 4. iPhoneのTestFlightで `oxycaster@gmail.com` 宛ての招待コードを引き換え、build 3をインストールする。iPhoneとMacを同じTailnetへ接続した状態でfixture版のUIを検証する。その後、商品価格/規約/プライバシー/サポートURL、監視・バックアップ・Webhook再送手順を確定し、実クラウド接続版のTestFlightへ進む。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
@@ -68,4 +72,4 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 
 ## ローカル実行状態（最終検証時）
 
-TestFlight実機確認用のデモAPI（127.0.0.1:4329）はlaunchd `com.oxycaster.wagaya-recipe-fixture` で起動し、Tailscale ServeのTailnet限定HTTPS 8443から転送中。Mac停止・再起動後は状態を再確認する。Metro（127.0.0.1:8093）は停止済み。シミュレーターにアプリはインストール済み。デモの再起動手順はrunbookに記載。テスト用DBはメモリ上なので再起動で初期化される。
+TestFlight実機確認用の旧デモAPI（127.0.0.1:4329）はlaunchd `com.oxycaster.wagaya-recipe-fixture` で起動し、Tailscale ServeのTailnet限定HTTPS 8443から転送中。Clerk development確認用API（127.0.0.1:4330）とMetro（127.0.0.1:8093）も起動中。Mac停止・再起動後は状態を再確認する。シミュレーターにClerk native development buildをインストール済み。デモの再起動手順はrunbookに記載。両fixtureのDBはメモリ上なのでプロセス再起動で初期化される。
