@@ -3,7 +3,7 @@
   "context": {
     "region": "ap-northeast-1",
     "githubRepository": "oxycaster/wagaya-recipe-book",
-    "productionDomain": "api.wagaya.oxycaster.com",
+    "parentHostedZoneId": "Z07405471OEYVNVS2TQ3H",
     "lightsailBlueprintId": "ubuntu_22_04",
     "lightsailBundleId": "medium_2_0"
   }

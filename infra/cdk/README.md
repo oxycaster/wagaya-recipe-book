@@ -23,7 +23,7 @@ CDK_DEFAULT_ACCOUNT="$production_account" \
   ./node_modules/.bin/cdk deploy -c environment=production --profile wagaya-recipe-book-production
 ```
 
-`production` stackの出力 `GitHubDeployRoleArn` をGitHub repository environment `production` のvariable `AWS_DEPLOY_ROLE_ARN` に設定する。ActionsはOIDCでこのroleを引き受け、短期SSH鍵をLightsail APIから取得して更新する。固定のAWS keyやSSH keyはGitHubへ保存しない。
+production stackの出力 `GitHubDeployRoleArn` をGitHub repository environment `production` のvariable `AWS_DEPLOY_ROLE_ARN` に設定する。ActionsはOIDCでこのroleを引き受け、短期SSH鍵をLightsail APIから取得して更新する。固定のAWS keyやSSH keyはGitHubへ保存しない。
 
 `ApplicationSettingsSecretArn` はAWS Secrets ManagerのJSON secretである。以下の値を入力する。`DATABASE_SSL_CA` は改行を `\\n` として保存できる。AWS資格情報とS3 bucket名は `RuntimeCredentialsSecretArn` にCDKが保存するため、ここへ重複して保存しない。
 
@@ -46,6 +46,18 @@ CDK_DEFAULT_ACCOUNT="$production_account" \
 
 CloudFormationが管理するS3 access keyは最小権限で、CDK stackの削除時も保持する。Secrets Managerへの閲覧とCloudFormationのstack閲覧を必要な運用者だけに制限する。
 
-`api.wagaya.oxycaster.com` のA recordは、production accountから親hosted zoneを参照できる場合だけ `-c hostedZoneId=...` を付けてCDKで作成する。親zoneが別アカウントにある場合は、親アカウント側でそのrecordだけを作成するか、`wagaya.oxycaster.com` をproduction accountへ委任してからCDKへ渡す。
+親zone `oxycaster.com` は `oxycaster` accountのpublic hosted zone `Z07405471OEYVNVS2TQ3H` で管理する。このためDNSはproduction stackに含めず、同じCDK appの親account用stack `WagayaRecipeBookDns-production` で管理する。production stack作成後、出力したstatic IPを使って初回だけ次を実行する。
+
+```sh
+aws sso login --profile oxycaster
+dns_account="$(aws sts get-caller-identity --profile oxycaster --query Account --output text)"
+CDK_DEFAULT_ACCOUNT="$dns_account" \
+  ./node_modules/.bin/cdk bootstrap "aws://${dns_account}/ap-northeast-1" --profile oxycaster
+CDK_DEFAULT_ACCOUNT="$dns_account" \
+  ./node_modules/.bin/cdk deploy WagayaRecipeBookDns-production \
+  -c environment=production -c target=dns -c apiStaticIp=<production static IP> --profile oxycaster
+```
+
+DNS stackの出力 `GitHubDnsDeployRoleArn` を同じGitHub environmentの `AWS_DNS_DEPLOY_ROLE_ARN` に設定する。以後のworkflowはproduction stackの更新後にこのroleへ切り替え、`api.wagaya.oxycaster.com` のA recordをstatic IPへ同期する。
 
 旧 `prod-wagaya-recipe-book-archives-619330834313` は別アカウントのTerraform管理バケットであり、本CDK stackは変更しない。新しいproduction bucketの実データ保存を受入後、空であることを確認してから旧バケットを別途削除する。

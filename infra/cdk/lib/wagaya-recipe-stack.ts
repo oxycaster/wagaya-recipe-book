@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib'
-import { aws_iam as iam, aws_lightsail as lightsail, aws_route53 as route53, aws_s3 as s3, aws_secretsmanager as secretsmanager } from 'aws-cdk-lib'
+import { aws_iam as iam, aws_lightsail as lightsail, aws_s3 as s3, aws_secretsmanager as secretsmanager } from 'aws-cdk-lib'
 import { Construct } from 'constructs'
 
 export interface WagayaRecipeStackProps extends cdk.StackProps {
@@ -105,18 +105,6 @@ export class WagayaRecipeStack extends cdk.Stack {
         staticIpName: 'prod-wagaya-recipe-book-api',
         attachedTo: instance.instanceName,
       })
-      const hostedZoneId = this.node.tryGetContext('hostedZoneId')
-      if (hostedZoneId) {
-        const zone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
-          hostedZoneId,
-          zoneName: 'oxycaster.com',
-        })
-        new route53.ARecord(this, 'ApiRecord', {
-          zone,
-          recordName: 'api.wagaya',
-          target: route53.RecordTarget.fromIpAddresses(staticIp.attrIpAddress),
-        })
-      }
       new cdk.CfnOutput(this, 'ApiStaticIpAddress', { value: staticIp.attrIpAddress })
       new cdk.CfnOutput(this, 'ApiInstanceName', { value: instance.instanceName })
     }

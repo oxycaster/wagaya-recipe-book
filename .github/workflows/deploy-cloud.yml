@@ -98,3 +98,22 @@ jobs:
           scp "${ssh_options[@]}" .deploy-tmp/runtime/.env .deploy-tmp/runtime/compose.yaml .deploy-tmp/runtime/Caddyfile "$user@$host:/tmp/"
           ssh "${ssh_options[@]}" "$user@$host" 'sudo install -d -m 0750 /opt/wagaya-recipe-book/api && sudo tar -xzf /tmp/wagaya-api.tgz -C /opt/wagaya-recipe-book/api && sudo install -m 0600 /tmp/.env /opt/wagaya-recipe-book/.env && sudo install -m 0644 /tmp/compose.yaml /tmp/Caddyfile /opt/wagaya-recipe-book/ && sudo docker compose -f /opt/wagaya-recipe-book/compose.yaml --project-directory /opt/wagaya-recipe-book up -d --build --remove-orphans'
           ssh "${ssh_options[@]}" "$user@$host" 'curl --fail --silent --show-error http://127.0.0.1:4320/health'
+
+      - name: Read production static IP
+        id: production_outputs
+        if: env.DEPLOY_ENVIRONMENT == 'production'
+        run: |
+          value=$(aws cloudformation describe-stacks --stack-name WagayaRecipeBook-production --query "Stacks[0].Outputs[?OutputKey=='ApiStaticIpAddress'].OutputValue | [0]" --output text)
+          echo "api_static_ip=$value" >> "$GITHUB_OUTPUT"
+
+      - name: Configure parent DNS account credentials through GitHub OIDC
+        if: env.DEPLOY_ENVIRONMENT == 'production'
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DNS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy parent Route 53 record
+        if: env.DEPLOY_ENVIRONMENT == 'production'
+        working-directory: infra/cdk
+        run: ./node_modules/.bin/cdk deploy WagayaRecipeBookDns-production --require-approval never -c environment=production -c target=dns -c apiStaticIp=${{ steps.production_outputs.outputs.api_static_ip }}

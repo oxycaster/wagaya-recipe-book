@@ -42,7 +42,7 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 4. [x] P4 運用: env例、Docker、S3設定、起動手順、引き継ぎ、既存版build/test。
 5. [ ] P5 外部環境での受入: 実メールOTP、S3、実OpenAI、RevenueCat Sandbox、TestFlight実機、削除/返金/復旧、審査資料。
 
-P5のホスティング工程では、CDKアプリ、GitHub OIDC信頼ポリシー（対象repository・production environmentに限定）、非公開S3、Lightsail 2GB/static IP/日次snapshot、Secrets Manager、`api.wagaya.oxycaster.com` を作成する。CDK synth/diffとGitHub Actionsの検証を先行し、実リソース作成前に月額見込みと作成差分を提示する。稼働後はfixed IPへCrunchy Bridge firewallを置換し、実API/worker/S3/LLMの受入を行う。
+P5のホスティング工程では、CDKアプリ、GitHub OIDC信頼ポリシー（対象repository・production environmentに限定）、非公開S3、Lightsail 2GB/static IP/日次snapshot、Secrets Managerをproduction accountへ作成する。`api.wagaya.oxycaster.com` のA recordは親Route 53 accountの別CDK stackで管理する。CDK synth/diffとGitHub Actionsの検証を先行し、実リソース作成前に月額見込みと作成差分を提示する。稼働後はfixed IPへCrunchy Bridge firewallを置換し、実API/worker/S3/LLMの受入を行う。
 
 P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、devのTailnet内ローカルfixtureへ接続する。続いてprodのClerk、Crunchy Bridge PostgreSQL 18、S3、API/worker、OpenAI、RevenueCatへ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実クラウド受入済みとは扱わない。
 
