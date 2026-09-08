@@ -1,6 +1,6 @@
 # iOS・クラウド版 実装計画
 
-作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。Clerk development instanceの実メール認証とdev Docker PostgreSQL 18は受入済み。prodクラウド・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
+作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。Clerk development instanceの実メール認証、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18の初期受入は完了。S3/API/worker・実OpenAI・実課金の受入と公開は未実施。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
 
@@ -10,7 +10,7 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 
 ## データ境界
 
-- user: 認証 sub (UUID)。購入権・HTML原本は本人に所属。JWTの署名/issuer/audience/期限を検証する。
+- user: Clerkの認証sub（文字列ID）。購入権・HTML原本は本人に所属。JWTの署名/issuer/audience/期限を検証する。
 - book: 家族の共有レシピ帖。owner/editor/viewer。ownerのみ招待・権限変更・退会処理、editorはカード化・献立編集、viewerは閲覧のみ。
 - invite: 一回限り・有効期限付き・宛先メール固定。DBにはトークンのハッシュのみ。発行したリンクはOS共有画面で本人が送る。
 - archive: `user/{sub}/archives/{uuid}.html` と代表画像。HTMLから Recipe JSON-LD、OGP、記事本文画像の順に候補を選び、公開IP固定・容量/形式検査を通った画像だけを非公開S3へ保存する。原本は本人のみダウンロード可。カード化成功時は画像を `books/{book}/recipes/` へ複製し、家族は認証付きAPIでカードと画像を閲覧する。公開URLや外部サイトへの画像直リンクは作らない。
@@ -30,7 +30,7 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 - DBの専用schemaに保存し、Clerkにはレシピデータを持たせない。全クエリで会員資格を検証する。
 - アカウント削除はまずアクセス無効化、ジョブ停止、所有レシピ帖は家族がいる場合は所有権移譲を要求。S3/認証削除は再試行可能な処理にする。会計台帳は最小限の監査記録を保持。
 - HTMLと抽出結果に個人情報が含まれうる。OpenAI送信について取り込み前に明示し、原文の欠落や誤抽出は利用者が確認できるようにする。
-- 料金・商品ID・本番リージョン・bundle ID・正式な利用規約/プライバシーポリシーURLは公開前に確定。S3/AWS、Clerk、OpenAI、RevenueCat、Apple/EASの新規有料リソースや提出はこの実装では実行しない。
+- 料金・商品ID・正式な利用規約/プライバシーポリシーURLは公開前に確定。本番DBはユーザー承認を経て東京リージョンに作成済み。今後の新規有料リソースや費用増を伴う変更は、具体的な構成と金額を確認してから実行する。
 
 ## 実装順と完了条件
 
@@ -48,7 +48,7 @@ P5以降の公開作業は `docs/app-store-release-plan.md` のM0〜M7とG0〜G7
 
 実装済みと実サービス検証済みは区別する。進捗は docs/ios-cloud-progress.md に、各区切りの変更・実行コマンド・結果・未完了・次の手順を追記する。
 
-P1〜P4のチェックはコードとローカル検証の完了を表す。S3、Auth、OpenAI、課金の外部アダプターが実際のアカウントで成功したことを意味しない。Docker image実ビルドと実PostgreSQL接続もP5環境で確認する。
+P1〜P4のチェックはコードとローカル検証の完了を表す。Clerk developmentとdev/prod PostgreSQL以外のS3、OpenAI、課金の外部アダプターが実際のアカウントで成功したことを意味しない。Docker image実ビルドはP5環境で確認する。
 
 ## 外部受入シナリオ
 
