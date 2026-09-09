@@ -43,7 +43,7 @@
 | 最低OS | iOS 17以上 | 現在のClerk native buildの実装要件。M1で公開仕様として確定 |
 | 公開方法 | 審査承認後に手動公開 | 未決定 |
 | 初回バージョン | 1.0.0へ更新 | 未決定。現在は0.1.0 |
-| 取り込み権 | Consumable 10回分: 150円、50回分: 600円。商品IDは `com.oxycastersorganization.wagayarecipe.import10` / `com.oxycastersorganization.wagayarecipe.import50`。販売地域は日本のみ | App Store Connectへ下書き登録済み。RevenueCatへ手動登録済み。App Store Connect APIキーは生成済みだがRevenueCat登録前。Sandbox受入は未実施 |
+| 取り込み権 | Consumable 10回分: 150円、50回分: 600円。商品IDは `com.oxycastersorganization.wagayarecipe.import10` / `com.oxycastersorganization.wagayarecipe.import50`。販売地域は日本のみ | App Store Connectへ下書き登録済み。RevenueCatへ手動登録済み。App Store Connect APIキーと秘密鍵は生成済みだがRevenueCat登録前。Sandbox受入は未実施 |
 | 初回データ移行 | なし。新規アカウントから開始 | 提案 |
 | Safari共有拡張 | 初回公開には含めない | 提案 |
 | 問い合わせ窓口 | 専用メールとWebフォーム | 未決定 |
