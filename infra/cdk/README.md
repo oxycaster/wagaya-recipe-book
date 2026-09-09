@@ -25,6 +25,8 @@ CDK_DEFAULT_ACCOUNT="$production_account" \
 
 production stackの出力 `GitHubDeployRoleArn` をGitHub repository environment `production` のvariable `AWS_DEPLOY_ROLE_ARN` に設定する。ActionsはOIDCでこのroleを引き受け、短期SSH鍵をLightsail APIから取得して更新する。固定のAWS keyやSSH keyはGitHubへ保存しない。
 
+GitHub OIDCの `sub` は、2026-07-15以降に作成されたrepository向けのimmutable subject claimsを使い、owner IDとrepository IDを含めて固定する。移管やrepository再作成時は `githubRepositorySubject` contextを新しいimmutable IDへ更新してからstackを適用する。
+
 初回bootstrapとCDK stackはdev/prodおよび親DNS accountで作成済み。GitHub environment `develop` と `production` のrole ARN variablesも設定済みである。application settings secretの値と、最初のGitHub Actions runtime deployは未完了。
 
 `ApplicationSettingsSecretArn` はAWS Secrets ManagerのJSON secretである。以下の値を入力する。`DATABASE_SSL_CA` は改行を `\\n` として保存できる。AWS資格情報とS3 bucket名は `RuntimeCredentialsSecretArn` にCDKが保存するため、ここへ重複して保存しない。

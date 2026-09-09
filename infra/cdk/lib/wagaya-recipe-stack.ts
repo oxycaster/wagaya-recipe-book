@@ -65,12 +65,14 @@ export class WagayaRecipeStack extends cdk.Stack {
       url: 'https://token.actions.githubusercontent.com',
       clientIds: ['sts.amazonaws.com'],
     })
-    const repository = this.node.tryGetContext('githubRepository') || 'oxycaster/wagaya-recipe-book'
+    const repositorySubject = this.node.tryGetContext('githubRepositorySubject') || 'oxycaster@480125/wagaya-recipe-book@1359060721'
     const deployRole = new iam.Role(this, 'GitHubDeployRole', {
       roleName: `${name}-github-deploy`,
       assumedBy: new iam.WebIdentityPrincipal(oidc.openIdConnectProviderArn, {
-        StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
-        StringLike: { 'token.actions.githubusercontent.com:sub': `repo:${repository}:environment:${props.environment}` },
+        StringEquals: {
+          'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+          'token.actions.githubusercontent.com:sub': `repo:${repositorySubject}:environment:${props.environment}`,
+        },
       }),
       description: 'GitHub Actions deployment role. Restrict its policy before the first production deployment.',
     })
