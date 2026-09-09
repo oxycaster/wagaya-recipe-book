@@ -27,7 +27,7 @@
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
 - prod Clerkの実メール認証、S3実原本保存、公開API/worker、実OpenAIは未接続。Crunchy BridgeはHobby plan・HAなし・log drain未設定で、別クラスタへのバックアップ復元も未検証。
-- RevenueCatとApp Store ConnectのConsumable商品、Sandbox購入、返金、通知再送は未検証。
+- App Store ConnectのConsumable商品は下書き登録済みで、RevenueCatにも同じproduct IDをConsumableとして登録済み。ただしApp Store Connect APIキーへのアクセス権が未付与のため、価格照会と自動Importが接続エラー。Sandbox購入、返金、通知再送は未検証。
 - プライバシーポリシー、利用規約、サポートページの正式URLがない。
 - App Privacy、年齢区分、コンテンツ権利、価格、販売地域、ストア説明・スクリーンショットが未確定。
 - 実サービス上のアカウント削除、バックアップ復元、監視通知を確認していない。
@@ -43,7 +43,7 @@
 | 最低OS | iOS 17以上 | 現在のClerk native buildの実装要件。M1で公開仕様として確定 |
 | 公開方法 | 審査承認後に手動公開 | 未決定 |
 | 初回バージョン | 1.0.0へ更新 | 未決定。現在は0.1.0 |
-| 取り込み権 | Consumable 10回分: 150円、50回分: 600円。商品IDは `com.oxycastersorganization.wagayarecipe.import10` / `com.oxycastersorganization.wagayarecipe.import50` | 確定。App Store ConnectとRevenueCatへ未登録 |
+| 取り込み権 | Consumable 10回分: 150円、50回分: 600円。商品IDは `com.oxycastersorganization.wagayarecipe.import10` / `com.oxycastersorganization.wagayarecipe.import50` | App Store Connectへ下書き登録済み。RevenueCatへ手動登録済み。App Store Connect APIキー権限とSandbox受入は未実施 |
 | 初回データ移行 | なし。新規アカウントから開始 | 提案 |
 | Safari共有拡張 | 初回公開には含めない | 提案 |
 | 問い合わせ窓口 | 専用メールとWebフォーム | 未決定 |
