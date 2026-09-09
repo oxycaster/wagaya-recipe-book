@@ -1,4 +1,30 @@
 {$API_DOMAIN} {
   encode zstd gzip
-  reverse_proxy api:4320
+
+  handle /privacy {
+    root * /srv
+    rewrite * /privacy.html
+    file_server
+  }
+
+  handle /terms {
+    root * /srv
+    rewrite * /terms.html
+    file_server
+  }
+
+  handle /support {
+    root * /srv
+    rewrite * /support.html
+    file_server
+  }
+
+  handle /styles.css {
+    root * /srv
+    file_server
+  }
+
+  handle {
+    reverse_proxy api:4320
+  }
 }
