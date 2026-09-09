@@ -28,6 +28,7 @@
 ### 公開を止めている事項
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
+- production build 4は本番設定の読込まで成功したが、Apple provisioning profileにSign in with Apple capabilityがなくXcode buildで停止。App IDのcapability有効化とprofile再生成が必要。
 - prod Clerkの実メール認証、S3実原本保存、認証付き公開API、実OpenAIは未受入。Crunchy BridgeはHobby plan・HAなし・log drain未設定で、別クラスタへのバックアップ復元も未検証。
 - App Store ConnectのConsumable商品は下書き登録済みで、RevenueCatにも同じproduct IDをConsumableとして登録済み。RevenueCatのApp Store Connect APIとIn-App Purchase Keyは有効。両商品は審査用情報が未完了のため `Missing Metadata` で、Sandbox購入、返金、通知再送は未検証。
 - App Privacy、年齢区分、コンテンツ権利、ストア説明・スクリーンショットが未確定。価格と販売地域は確定済み。
