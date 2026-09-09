@@ -12,7 +12,13 @@ import { billingEvent } from '../billing.mjs'
 import { claimJob, finishJob, processOne, cleanupOne } from '../jobs.mjs'
 import { createApp } from '../app.mjs'
 import { imageCandidate, isPublicIP, fetchHtml } from '../fetch-html.mjs'
-import { prepareHtml, validateExtraction, extractor } from '../extractor.mjs'
+import {
+  MAX_MODEL_INPUT_CHARACTERS,
+  MAX_MODEL_OUTPUT_TOKENS,
+  prepareHtml,
+  validateExtraction,
+  extractor,
+} from '../extractor.mjs'
 
 let pg, db, svc, admin, testDatabase
 const config = {
@@ -450,6 +456,7 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
   const run = extractor(env, async (_url, request) => {
     const body = JSON.parse(request.body)
     assert.equal(body.store, false)
+    assert.equal(body.max_output_tokens, MAX_MODEL_OUTPUT_TOKENS)
     assert.equal(body.text.format.type, 'json_schema')
     return {
       ok: true,
@@ -467,6 +474,18 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
     }))(html),
     /MODEL_INCOMPLETE/,
   )
+})
+test('extraction rejects model input beyond the paid-import limit before calling OpenAI', async () => {
+  const tooLarge = `<html><body>${'あ'.repeat(MAX_MODEL_INPUT_CHARACTERS)}</body></html>`
+  assert.throws(() => prepareHtml(tooLarge), /SOURCE_TOO_LARGE_FOR_MODEL/)
+  let called = false
+  await assert.rejects(
+    extractor({ OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'configured-model' }, async () => {
+      called = true
+    })(tooLarge),
+    /SOURCE_TOO_LARGE_FOR_MODEL/,
+  )
+  assert.equal(called, false)
 })
 test('HTTP requires auth and webhook secret, validates IDs, uploads without public HTML routes', async () => {
   const { user, book } = await setup(),
