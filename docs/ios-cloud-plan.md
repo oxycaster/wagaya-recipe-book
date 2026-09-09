@@ -1,6 +1,6 @@
 # iOS・クラウド版 実装計画
 
-作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。Clerk developmentの実メール認証、Clerk production domainのDNS/SSL、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18、非公開prod S3の初期受入は完了。API/worker・実OpenAI・実課金の受入と公開は未実施。取り込み権は10回150円、50回600円で開始する。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
+作成: 2026-09-06 / 更新: 2026-09-09 / 状態: P1〜P4のローカル実装・検証済み。P5の内部TestFlight build 3を配信済み。本番API/worker、HTTPS、DNS、Clerk production domain、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18、非公開prod S3の初期受入は完了。実OpenAI・実課金・本番認証付き機能の受入と公開は未実施。取り込み権は10回150円、50回600円で開始する。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
 
@@ -42,7 +42,7 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 4. [x] P4 運用: env例、Docker、S3設定、起動手順、引き継ぎ、既存版build/test。
 5. [ ] P5 外部環境での受入: 実メールOTP、S3、実OpenAI、RevenueCat Sandbox、TestFlight実機、削除/返金/復旧、審査資料。
 
-P5のホスティング工程では、CDKアプリ、GitHub OIDC信頼ポリシー（対象repository・production environmentに限定）、非公開S3、Lightsail 2GB/static IP/日次snapshot、Secrets Managerをproduction accountへ作成する。`api.wagaya.oxycaster.com` のA recordは親Route 53 accountの別CDK stackで管理する。CDK synth/diffとGitHub Actionsの検証を先行し、実リソース作成前に月額見込みと作成差分を提示する。稼働後はfixed IPへCrunchy Bridge firewallを置換し、実API/worker/S3/LLMの受入を行う。
+P5のホスティング工程では、CDKアプリ、GitHub OIDC信頼ポリシー（対象repository・production environmentに限定）、非公開S3、Lightsail 2GB/static IP/日次snapshot、Secrets Managerをproduction accountへ作成する。`api.wagaya.oxycaster.com` のA recordは親Route 53 accountの別CDK stackで管理する。2026-09-09にGitHub Actionsからruntimeと両CDK stackを更新し、公開HTTPS health、固定IPのDNS、DB firewall、SSH閉鎖まで受入済み。次に実認証付きAPI、S3、OpenAIの受入を行う。
 
 P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、devのTailnet内ローカルfixtureへ接続する。続いてprodのClerk、Crunchy Bridge PostgreSQL 18、S3、API/worker、OpenAI、RevenueCatへ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実クラウド受入済みとは扱わない。
 
