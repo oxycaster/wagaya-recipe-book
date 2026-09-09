@@ -7,6 +7,8 @@ services:
         required: false
     command: node index.mjs
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:4320:4320"
     expose:
       - "4320"
 

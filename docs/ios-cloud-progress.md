@@ -80,6 +80,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 Actions dotenv修正: SSH修正のPR #5をmainへマージし、run `34335553302` でOIDC、CDK、SSHホスト鍵確認、ファイル転送まで成功した。Compose起動時に、実改行を含むDB CA証明書がdotenvの複数行として出力され、証明書本文を変数名と誤認して停止した。jqの `@json` で全env値を二重引用・エスケープしてからAPI/worker用dotenvへ書くよう修正した。秘密値はログへ出力されていない。runtime・DNS更新は未完了。
 - 2026-09-09 runtime初回起動: dotenv修正のPR #6をmainへマージし、run `34335801812` でAPI/workerイメージのbuildと3コンテナの起動まで成功した。起動2秒後の単発health checkはconnection refusedで失敗し、後続DNS stepは未実行。公開HTTPSはCaddyへ接続できるが、Crunchy Bridge firewallが暫定operator IPだけを許可しているためDB healthはタイムアウトする。health checkを最大約1分再試行するよう修正した。次はfirewallへLightsail static IPを追加して疎通確認後、暫定operator ruleを削除する。
 - 2026-09-09 prod DB固定送信元: ユーザー確認後、Crunchy Bridge firewallへLightsail static IP `35.72.64.233/32` を `Production Lightsail API egress` として追加した。公開HTTPS `/health` が `{"ok":true}` を返すことを確認してから、暫定operator IP `60.137.41.140/32` を削除した。最終画面でfirewall ruleがLightsailの1件だけであることを確認した。
+- 2026-09-09 Actions health確認修正: PR #7をmainへマージ後のrun `34339914196` はAPI/worker/Caddyの再作成まで成功したが、APIの4320番がCompose network内だけに公開されている状態で、ホスト側 `127.0.0.1:4320` を13回確認したため失敗した。APIをホストのloopbackだけへ割り当てるようComposeを修正し、外部公開は引き続きCaddyの80/443番だけに限定した。次はmain反映後のworkflow、公開HTTPS health、SSH 22閉鎖、親Route 53更新を確認する。
 
 ## 次のエージェントが行うこと
 
