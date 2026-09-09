@@ -79,7 +79,7 @@ jobs:
           }
           trap cleanup EXIT
           aws lightsail open-instance-public-ports --instance-name "$instance_name" --port-info fromPort=22,toPort=22,protocol=tcp,cidrs="$runner_ip/32"
-          mkdir -p .deploy-tmp/runtime
+          mkdir -p .deploy-tmp/runtime/site
           aws secretsmanager get-secret-value --secret-id "$runtime_secret" --query SecretString --output text > .deploy-tmp/runtime-aws.json
           aws secretsmanager get-secret-value --secret-id "$settings_secret" --query SecretString --output text > .deploy-tmp/settings.json
           jq -s '.[0] * .[1]' .deploy-tmp/runtime-aws.json .deploy-tmp/settings.json > .deploy-tmp/merged-settings.json
@@ -103,6 +103,7 @@ jobs:
             to_entries[] | "\(.key)=\(.value|tostring|@json)"
           ' .deploy-tmp/merged-settings.json > .deploy-tmp/runtime/.env.worker
           cp infra/runtime/compose.yaml infra/runtime/Caddyfile .deploy-tmp/runtime/
+          cp infra/runtime/site/*.html infra/runtime/site/styles.css .deploy-tmp/runtime/site/
           tar -C services/api -czf .deploy-tmp/api.tgz .
           access=$(aws lightsail get-instance-access-details --instance-name "$instance_name")
           host=$(jq -r '.accessDetails.ipAddress' <<<"$access")
@@ -118,7 +119,8 @@ jobs:
           ssh_options=(-i .deploy-tmp/key -o CertificateFile=.deploy-tmp/key-cert.pub -o UserKnownHostsFile=.deploy-tmp/known_hosts -o StrictHostKeyChecking=yes)
           scp "${ssh_options[@]}" .deploy-tmp/api.tgz "$user@$host:/tmp/wagaya-api.tgz"
           scp "${ssh_options[@]}" .deploy-tmp/runtime/.env.api .deploy-tmp/runtime/.env.worker .deploy-tmp/runtime/compose.yaml .deploy-tmp/runtime/Caddyfile "$user@$host:/tmp/"
-          ssh "${ssh_options[@]}" "$user@$host" 'sudo install -d -m 0750 /opt/wagaya-recipe-book/api && sudo tar -xzf /tmp/wagaya-api.tgz -C /opt/wagaya-recipe-book/api && sudo install -m 0600 /tmp/.env.api /tmp/.env.worker /opt/wagaya-recipe-book/ && sudo install -m 0644 /tmp/compose.yaml /tmp/Caddyfile /opt/wagaya-recipe-book/ && sudo docker compose -f /opt/wagaya-recipe-book/compose.yaml --project-directory /opt/wagaya-recipe-book up -d --build --remove-orphans'
+          scp -r "${ssh_options[@]}" .deploy-tmp/runtime/site "$user@$host:/tmp/"
+          ssh "${ssh_options[@]}" "$user@$host" 'sudo install -d -m 0750 /opt/wagaya-recipe-book/api /opt/wagaya-recipe-book/site && sudo tar -xzf /tmp/wagaya-api.tgz -C /opt/wagaya-recipe-book/api && sudo cp -R /tmp/site/. /opt/wagaya-recipe-book/site/ && sudo chmod -R u=rwX,g=rX,o= /opt/wagaya-recipe-book/site && sudo install -m 0600 /tmp/.env.api /tmp/.env.worker /opt/wagaya-recipe-book/ && sudo install -m 0644 /tmp/compose.yaml /tmp/Caddyfile /opt/wagaya-recipe-book/ && sudo docker compose -f /opt/wagaya-recipe-book/compose.yaml --project-directory /opt/wagaya-recipe-book up -d --build --remove-orphans'
           ssh "${ssh_options[@]}" "$user@$host" 'curl --fail --silent --show-error --retry 12 --retry-delay 5 --retry-all-errors --max-time 10 http://127.0.0.1:4320/health'
 
       - name: Read production static IP

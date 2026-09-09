@@ -1,0 +1,55 @@
+:root {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  color: #29231f;
+  background: #f7f3ec;
+  line-height: 1.75;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  box-sizing: border-box;
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+h1, h2 {
+  line-height: 1.35;
+  color: #3d2c22;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.75rem, 6vw, 2.4rem);
+}
+
+h2 {
+  margin-top: 2rem;
+  font-size: 1.2rem;
+}
+
+p, li {
+  font-size: 1rem;
+}
+
+.updated {
+  margin-bottom: 2.5rem;
+  color: #75685e;
+}
+
+a {
+  color: #9a4f2e;
+}
+
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #d8cfc5;
+}
