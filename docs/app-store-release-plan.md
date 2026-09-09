@@ -21,12 +21,13 @@
 - devのDocker PostgreSQL 18.6へmigrationし、専用一時DBを使う22件の複数接続統合テストを確認済み。
 - prodのCrunchy Bridge PostgreSQL 18.6へTLS 1.3で接続し、`recipe_cloud` schemaのmigration、削除保護、定期メンテナンス枠、全公開firewallの撤去、手動バックアップを確認済み。
 - prod S3バケットを作成し、全公開遮断、AES256暗号化、BucketOwnerEnforced、非TLS拒否を確認済み。
+- 本番API/workerをLightsailへGitHub Actionsから配備し、独自HTTPS、Route 53、Crunchy Bridge固定IP接続、デプロイ後のSSH閉鎖を確認済み。
 - APIの権限、取り込み権台帳、ジョブ再開、アカウント削除をPGlite統合テストで確認済み。
 
 ### 公開を止めている事項
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
-- prod Clerkの実メール認証、S3実原本保存、公開API/worker、実OpenAIは未接続。Crunchy BridgeはHobby plan・HAなし・log drain未設定で、別クラスタへのバックアップ復元も未検証。
+- prod Clerkの実メール認証、S3実原本保存、認証付き公開API、実OpenAIは未受入。Crunchy BridgeはHobby plan・HAなし・log drain未設定で、別クラスタへのバックアップ復元も未検証。
 - App Store ConnectのConsumable商品は下書き登録済みで、RevenueCatにも同じproduct IDをConsumableとして登録済み。RevenueCatのApp Store Connect APIとIn-App Purchase Keyは有効。両商品は審査用情報が未完了のため `Missing Metadata` で、Sandbox購入、返金、通知再送は未検証。
 - プライバシーポリシー、利用規約、サポートページの正式URLがない。
 - App Privacy、年齢区分、コンテンツ権利、ストア説明・スクリーンショットが未確定。価格と販売地域は確定済み。
