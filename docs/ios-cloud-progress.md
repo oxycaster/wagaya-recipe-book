@@ -77,6 +77,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 初回Actions修正: PR #2をmainへマージし、production workflow run `34334107514` を開始した。AWS認証前の準備は成功したが、GitHub OIDC role引受けが拒否され、CDK・runtime・DNS更新は未実行だった。repositoryの作成日が2026-07-15以降で、OIDC `sub` がowner/repositoryのimmutable IDを含む新形式であることが原因と特定した。productionと親DNSのrole信頼ポリシーを該当repository・production environmentのimmutable subjectへ限定して更新し、CDK定義にも同じ修正を加えた。CDK TypeScriptとproduction synthは成功。develop synthはdevelop profileの認証情報を取得できず未確認。
 - 2026-09-09 Actions依存設定修正: OIDC修正のPR #3をmainへマージし、run `34334961023` でAWS role引受け成功を確認した。次の `pnpm install --frozen-lockfile` は、`infra/cdk/pnpm-workspace.yaml` の自動生成された未確定値によりesbuildのbuild scriptを拒否した。許可を `allowBuilds.esbuild: true` と明示し、一時ディレクトリのclean installとesbuildを使うtsx起動に成功した。CDK・runtime・DNS更新はこのrunでも未実行。
 - 2026-09-09 Actions SSH修正: 依存設定修正のPR #4をmainへマージし、run `34335174119` でOIDC、clean install、CDK synth/deployが成功した。runtime転送ではLightsail APIの `hostKeys` が空配列だったため、空のknown_hostsを使った厳格確認がSSH接続を拒否した。SSH 22をrunnerのIPv4 `/32` だけに一時開放した後、APIから鍵を取得できない場合に `ssh-keyscan` で取得し、非空を確認してから `StrictHostKeyChecking=yes` で接続するよう修正した。cleanupで22番を閉じたことを確認済み。runtime・DNS更新は未完了。
+- 2026-09-09 Actions dotenv修正: SSH修正のPR #5をmainへマージし、run `34335553302` でOIDC、CDK、SSHホスト鍵確認、ファイル転送まで成功した。Compose起動時に、実改行を含むDB CA証明書がdotenvの複数行として出力され、証明書本文を変数名と誤認して停止した。jqの `@json` で全env値を二重引用・エスケープしてからAPI/worker用dotenvへ書くよう修正した。秘密値はログへ出力されていない。runtime・DNS更新は未完了。
 
 ## 次のエージェントが行うこと
 
