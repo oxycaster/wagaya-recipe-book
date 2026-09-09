@@ -82,6 +82,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 prod DB固定送信元: ユーザー確認後、Crunchy Bridge firewallへLightsail static IP `35.72.64.233/32` を `Production Lightsail API egress` として追加した。公開HTTPS `/health` が `{"ok":true}` を返すことを確認してから、暫定operator IP `60.137.41.140/32` を削除した。最終画面でfirewall ruleがLightsailの1件だけであることを確認した。
 - 2026-09-09 Actions health確認修正: PR #7をmainへマージ後のrun `34339914196` はAPI/worker/Caddyの再作成まで成功したが、APIの4320番がCompose network内だけに公開されている状態で、ホスト側 `127.0.0.1:4320` を13回確認したため失敗した。APIをホストのloopbackだけへ割り当てるようComposeを修正し、外部公開は引き続きCaddyの80/443番だけに限定した。次はmain反映後のworkflow、公開HTTPS health、SSH 22閉鎖、親Route 53更新を確認する。
 - 2026-09-09 本番自動デプロイ受入: health修正のPR #8をmainへマージし、GitHub Actions run `34340378989` が全工程を2分3秒で完了した。production CDK、Lightsail runtime、親accountのRoute 53 CDKをOIDCで更新し、`https://api.wagaya.oxycaster.com/health` は `{"ok":true}`、A recordはstatic IP `35.72.64.233` を返した。Lightsailの22番port stateが空であること、production/DNS両IAM roleのOIDC subjectがrepository immutable IDとproduction environmentへ限定されていることも確認した。APIの4320番はホストloopbackだけに割り当てられ、公開入口はCaddyの80/443番だけである。未完了は本番Clerk認証付きAPI、S3実原本、OpenAI抽出、RevenueCat Sandbox、監視・復元の受入。
+- 2026-09-09 公開API境界/EAS設定: 公開APIの `/v1/me` はBearer tokenなしを401 `SIGN_IN_REQUIRED`、RevenueCat Webhookは秘密なしを401 `INVALID_WEBHOOK` で拒否した。Clerk CLI 3.3.0のdoctorは認証・repository link・production instanceを正常と判定し、production利用者は0人だった。EAS production環境にはAPI URL、bundle ID、project ID、Clerk production公開キー、RevenueCat iOS SDK公開キーを登録した。production buildに必要なPrivacy・Terms・Support URLは未登録。3ページの公開前草案を `docs/legal` に作成し、問い合わせ先と内容確認後にHTTPSで公開する。
 
 ## 次のエージェントが行うこと
 
