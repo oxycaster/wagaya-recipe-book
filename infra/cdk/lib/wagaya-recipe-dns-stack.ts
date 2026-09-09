@@ -7,7 +7,7 @@ export class WagayaRecipeDnsStack extends cdk.Stack {
     super(scope, id, props)
     const account = cdk.Stack.of(this).account
     if (cdk.Token.isUnresolved(account)) throw new Error('AWS account is required for this stack')
-    const repository = this.node.tryGetContext('githubRepository') || 'oxycaster/wagaya-recipe-book'
+    const repositorySubject = this.node.tryGetContext('githubRepositorySubject') || 'oxycaster@480125/wagaya-recipe-book@1359060721'
     const hostedZoneId = this.node.tryGetContext('parentHostedZoneId')
     const apiStaticIp = this.node.tryGetContext('apiStaticIp')
     if (!hostedZoneId) throw new Error('parentHostedZoneId context is required')
@@ -22,8 +22,10 @@ export class WagayaRecipeDnsStack extends cdk.Stack {
     const deployRole = new iam.Role(this, 'GitHubDnsDeployRole', {
       roleName: 'wagaya-recipe-book-production-github-dns-deploy',
       assumedBy: new iam.WebIdentityPrincipal(oidc.openIdConnectProviderArn, {
-        StringEquals: { 'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com' },
-        StringLike: { 'token.actions.githubusercontent.com:sub': `repo:${repository}:environment:production` },
+        StringEquals: {
+          'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
+          'token.actions.githubusercontent.com:sub': `repo:${repositorySubject}:environment:production`,
+        },
       }),
       description: 'GitHub Actions role for the parent Route 53 DNS stack.',
     })
