@@ -1,6 +1,6 @@
 # App Store公開計画
 
-作成: 2026-09-08 / 更新: 2026-09-09 / 対象: iOS版「わが家のレシピ帖」 / 状態: 計画初稿完成、M0実機確認中
+作成: 2026-09-08 / 更新: 2026-09-10 / 対象: iOS版「わが家のレシピ帖」 / 状態: 計画初稿完成、production TestFlight提出中
 
 ## 1. 公開目標
 
@@ -23,12 +23,13 @@
 - prod S3バケットを作成し、全公開遮断、AES256暗号化、BucketOwnerEnforced、非TLS拒否を確認済み。
 - 本番API/workerをLightsailへGitHub Actionsから配備し、独自HTTPS、Route 53、Crunchy Bridge固定IP接続、デプロイ後のSSH閉鎖を確認済み。
 - プライバシーポリシー、利用規約、サポートページを本番HTTPSで公開し、アプリ用EAS production環境へURLを登録済み。
+- Apple App IDのSign in with Apple capabilityを有効化し、対応するprovisioning profileでiOS 0.1.0 build 5のproduction buildに成功済み。App Store Connectへの提出はEAS Submitのキュー処理中。
 - APIの権限、取り込み権台帳、ジョブ再開、アカウント削除をPGlite統合テストで確認済み。
 
 ### 公開を止めている事項
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
-- production build 4は本番設定の読込まで成功したが、Apple provisioning profileにSign in with Apple capabilityがなくXcode buildで停止。App IDのcapability有効化とprofile再生成が必要。
+- production build 5のApp Store Connect提出完了、Apple側の処理、内部TestFlight配信、iPhone実機起動は未確認。
 - prod Clerkの実メール認証、S3実原本保存、認証付き公開API、実OpenAIは未受入。Crunchy BridgeはHobby plan・HAなし・log drain未設定で、別クラスタへのバックアップ復元も未検証。
 - App Store ConnectのConsumable商品は下書き登録済みで、RevenueCatにも同じproduct IDをConsumableとして登録済み。RevenueCatのApp Store Connect APIとIn-App Purchase Keyは有効。両商品は審査用情報が未完了のため `Missing Metadata` で、Sandbox購入、返金、通知再送は未検証。
 - App Privacy、年齢区分、コンテンツ権利、ストア説明・スクリーンショットが未確定。価格と販売地域は確定済み。
