@@ -91,7 +91,7 @@ jobs:
               "REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_APP_ID",
               "REVENUECAT_ENVIRONMENT", "REVENUECAT_PRODUCTS"
             ))) |
-            to_entries[] | "\(.key)=\(.value|tostring)"
+            to_entries[] | "\(.key)=\(.value|tostring|@json)"
           ' .deploy-tmp/merged-settings.json > .deploy-tmp/runtime/.env.api
           jq -r '
             with_entries(select(.key | IN(
@@ -100,7 +100,7 @@ jobs:
               "AWS_REGION", "S3_BUCKET", "S3_ENDPOINT",
               "CLERK_SECRET_KEY", "OPENAI_API_KEY", "OPENAI_MODEL"
             ))) |
-            to_entries[] | "\(.key)=\(.value|tostring)"
+            to_entries[] | "\(.key)=\(.value|tostring|@json)"
           ' .deploy-tmp/merged-settings.json > .deploy-tmp/runtime/.env.worker
           cp infra/runtime/compose.yaml infra/runtime/Caddyfile .deploy-tmp/runtime/
           tar -C services/api -czf .deploy-tmp/api.tgz .
