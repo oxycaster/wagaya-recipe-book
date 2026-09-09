@@ -1,0 +1,61 @@
+export type Book = {
+  id: string
+  name: string
+  role: 'owner' | 'editor' | 'viewer'
+}
+export type Card = {
+  title: string
+  category: '主菜' | '副菜' | '汁物' | 'その他'
+  minutes: number | null
+  servings: number | null
+  ingredients: { name: string; amount: string }[]
+  steps: string[]
+  tags: string[]
+  sourceUrl?: string
+  memo?: string
+}
+export type Recipe = {
+  id: string
+  card: Card
+  version: number
+  created_at: string
+  has_image: boolean
+}
+export type Archive = {
+  id: string
+  source_url: string
+  status:
+    | null
+    | 'queued'
+    | 'processing'
+    | 'succeeded'
+    | 'failed'
+    | 'needs_review'
+  error_code: string | null
+}
+export type Plan = {
+  version: number
+  items: {
+    id: string
+    recipeId: string
+    state: 'cook' | 'leftover'
+    portions: number
+  }[]
+}
+export type Wallet = {
+  balance: number
+  reserved: number
+  available: number
+  ledger: { delta: number; reason: string; created_at: string }[]
+}
+export type Family = {
+  members: { user_id: string; email: string; role: Book['role'] }[]
+  invites: {
+    id: string
+    email: string
+    role: string
+    expires_at: string
+    accepted_by: string | null
+    revoked: boolean
+  }[]
+}

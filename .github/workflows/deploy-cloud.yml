@@ -1,0 +1,137 @@
+name: Deploy cloud runtime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'services/api/**'
+      - 'infra/**'
+      - '.github/workflows/deploy-cloud.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: production
+        type: choice
+        options: [develop, production]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: wagaya-recipe-${{ inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment || 'production' }}
+    env:
+      AWS_REGION: ap-northeast-1
+      DEPLOY_ENVIRONMENT: ${{ inputs.environment || 'production' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.12.0
+          cache: pnpm
+          cache-dependency-path: |
+            services/api/pnpm-lock.yaml
+            infra/cdk/pnpm-lock.yaml
+
+      - name: Configure AWS credentials through GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install and verify CDK application
+        working-directory: infra/cdk
+        run: |
+          pnpm install --frozen-lockfile
+          ./node_modules/.bin/tsc --noEmit
+          ./node_modules/.bin/cdk synth -c environment=${DEPLOY_ENVIRONMENT}
+
+      - name: Deploy CDK stack
+        working-directory: infra/cdk
+        run: ./node_modules/.bin/cdk deploy --require-approval never -c environment=${DEPLOY_ENVIRONMENT}
+
+      - name: Deploy runtime to Lightsail
+        if: env.DEPLOY_ENVIRONMENT == 'production'
+        shell: bash
+        run: |
+          set -euo pipefail
+          stack_name=WagayaRecipeBook-production
+          instance_name=$(aws cloudformation describe-stacks --stack-name "$stack_name" --query "Stacks[0].Outputs[?OutputKey=='ApiInstanceName'].OutputValue | [0]" --output text)
+          runtime_secret=$(aws cloudformation describe-stacks --stack-name "$stack_name" --query "Stacks[0].Outputs[?OutputKey=='RuntimeCredentialsSecretArn'].OutputValue | [0]" --output text)
+          settings_secret=$(aws cloudformation describe-stacks --stack-name "$stack_name" --query "Stacks[0].Outputs[?OutputKey=='ApplicationSettingsSecretArn'].OutputValue | [0]" --output text)
+          runner_ip=$(curl --fail --silent --show-error https://checkip.amazonaws.com | tr -d '\n')
+          cleanup() {
+            aws lightsail close-instance-public-ports --instance-name "$instance_name" --port-info fromPort=22,toPort=22,protocol=tcp >/dev/null 2>&1 || true
+            rm -rf .deploy-tmp
+          }
+          trap cleanup EXIT
+          aws lightsail open-instance-public-ports --instance-name "$instance_name" --port-info fromPort=22,toPort=22,protocol=tcp,cidrs="$runner_ip/32"
+          mkdir -p .deploy-tmp/runtime
+          aws secretsmanager get-secret-value --secret-id "$runtime_secret" --query SecretString --output text > .deploy-tmp/runtime-aws.json
+          aws secretsmanager get-secret-value --secret-id "$settings_secret" --query SecretString --output text > .deploy-tmp/settings.json
+          jq -s '.[0] * .[1]' .deploy-tmp/runtime-aws.json .deploy-tmp/settings.json > .deploy-tmp/merged-settings.json
+          jq -r '
+            with_entries(select(.key | IN(
+              "APP_ENV", "DATABASE_URL", "DATABASE_SSL_CA",
+              "CLERK_ISSUER_URL", "CLERK_AUTHORIZED_PARTIES",
+              "AWS_REGION", "S3_BUCKET", "S3_ENDPOINT",
+              "REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_APP_ID",
+              "REVENUECAT_ENVIRONMENT", "REVENUECAT_PRODUCTS"
+            ))) |
+            to_entries[] | "\(.key)=\(.value|tostring)"
+          ' .deploy-tmp/merged-settings.json > .deploy-tmp/runtime/.env.api
+          jq -r '
+            with_entries(select(.key | IN(
+              "APP_ENV", "DATABASE_URL", "DATABASE_SSL_CA",
+              "CLERK_ISSUER_URL", "CLERK_AUTHORIZED_PARTIES",
+              "AWS_REGION", "S3_BUCKET", "S3_ENDPOINT",
+              "CLERK_SECRET_KEY", "OPENAI_API_KEY", "OPENAI_MODEL"
+            ))) |
+            to_entries[] | "\(.key)=\(.value|tostring)"
+          ' .deploy-tmp/merged-settings.json > .deploy-tmp/runtime/.env.worker
+          cp infra/runtime/compose.yaml infra/runtime/Caddyfile .deploy-tmp/runtime/
+          tar -C services/api -czf .deploy-tmp/api.tgz .
+          access=$(aws lightsail get-instance-access-details --instance-name "$instance_name")
+          host=$(jq -r '.accessDetails.ipAddress' <<<"$access")
+          user=$(jq -r '.accessDetails.username' <<<"$access")
+          jq -r '.accessDetails.privateKey' <<<"$access" > .deploy-tmp/key
+          jq -r '.accessDetails.certKey' <<<"$access" > .deploy-tmp/key-cert.pub
+          jq -r --arg host "$host" '.accessDetails.hostKeys[] | "\($host) \(.publicKey)"' <<<"$access" > .deploy-tmp/known_hosts
+          chmod 600 .deploy-tmp/key
+          ssh_options=(-i .deploy-tmp/key -o CertificateFile=.deploy-tmp/key-cert.pub -o UserKnownHostsFile=.deploy-tmp/known_hosts -o StrictHostKeyChecking=yes)
+          scp "${ssh_options[@]}" .deploy-tmp/api.tgz "$user@$host:/tmp/wagaya-api.tgz"
+          scp "${ssh_options[@]}" .deploy-tmp/runtime/.env.api .deploy-tmp/runtime/.env.worker .deploy-tmp/runtime/compose.yaml .deploy-tmp/runtime/Caddyfile "$user@$host:/tmp/"
+          ssh "${ssh_options[@]}" "$user@$host" 'sudo install -d -m 0750 /opt/wagaya-recipe-book/api && sudo tar -xzf /tmp/wagaya-api.tgz -C /opt/wagaya-recipe-book/api && sudo install -m 0600 /tmp/.env.api /tmp/.env.worker /opt/wagaya-recipe-book/ && sudo install -m 0644 /tmp/compose.yaml /tmp/Caddyfile /opt/wagaya-recipe-book/ && sudo docker compose -f /opt/wagaya-recipe-book/compose.yaml --project-directory /opt/wagaya-recipe-book up -d --build --remove-orphans'
+          ssh "${ssh_options[@]}" "$user@$host" 'curl --fail --silent --show-error http://127.0.0.1:4320/health'
+
+      - name: Read production static IP
+        id: production_outputs
+        if: env.DEPLOY_ENVIRONMENT == 'production'
+        run: |
+          value=$(aws cloudformation describe-stacks --stack-name WagayaRecipeBook-production --query "Stacks[0].Outputs[?OutputKey=='ApiStaticIpAddress'].OutputValue | [0]" --output text)
+          echo "api_static_ip=$value" >> "$GITHUB_OUTPUT"
+
+      - name: Configure parent DNS account credentials through GitHub OIDC
+        if: env.DEPLOY_ENVIRONMENT == 'production'
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ vars.AWS_DNS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy parent Route 53 record
+        if: env.DEPLOY_ENVIRONMENT == 'production'
+        working-directory: infra/cdk
+        run: ./node_modules/.bin/cdk deploy WagayaRecipeBookDns-production --require-approval never -c environment=production -c target=dns -c apiStaticIp=${{ steps.production_outputs.outputs.api_static_ip }}

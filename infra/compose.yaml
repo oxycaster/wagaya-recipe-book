@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: recipe
+      POSTGRES_PASSWORD: recipe
+      POSTGRES_DB: recipe
+    ports: ["127.0.0.1:54329:5432"]
+    volumes: ["recipe-postgres-18:/var/lib/postgresql"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U recipe"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  recipe-postgres-18:

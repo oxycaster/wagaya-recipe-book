@@ -1,0 +1,38 @@
+{
+  "cli": {
+    "version": ">= 18.4.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "testflight": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "env": {
+        "IOS_BUNDLE_IDENTIFIER": "com.oxycastersorganization.wagayarecipe",
+        "EXPO_PUBLIC_API_URL": "https://hiro-mac.tail6a2f57.ts.net:8443",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZGlzdGluY3Qtb3Bvc3N1bS05ODI2LmNsZXJrLmFjY291bnRzLmRldiQ"
+      }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "testflight": {},
+    "production": {}
+  }
+}

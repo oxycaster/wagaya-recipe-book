@@ -3,3 +3,16 @@ dist/
 data/
 .DS_Store
 *.tsbuildinfo
+.env
+.env.*
+!.env.example
+.expo/
+apps/mobile/ios/
+apps/mobile/android/
+infra/.terraform/
+infra/cdk/cdk.out/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.cloud-test-data/
+.codex/

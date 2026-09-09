@@ -1,0 +1,33 @@
+import { setTimeout } from 'node:timers/promises'
+import { createClerkClient } from '@clerk/backend'
+import { database } from './db.mjs'
+import { storage } from './storage.mjs'
+import { extractor } from './extractor.mjs'
+import { processOne, cleanupOne } from './jobs.mjs'
+import { config } from './config.mjs'
+config(process.env, { worker: true })
+const db = database(process.env.DATABASE_URL),
+  store = storage(process.env),
+  extract = extractor(process.env)
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY })
+let stopping = false
+for (const s of ['SIGTERM', 'SIGINT'])
+  process.on(s, () => {
+    stopping = true
+  })
+while (!stopping) {
+  try {
+    await cleanupOne(db, store, async (id) => {
+      try {
+        await clerk.users.deleteUser(id)
+      } catch (error) {
+        if (error?.status !== 404) throw new Error('AUTH_DELETE_FAILED')
+      }
+    })
+    if (!(await processOne(db, store, extract))) await setTimeout(2000)
+  } catch (e) {
+    console.error('worker_error', e.code || e.name)
+    await setTimeout(5000)
+  }
+}
+await db.close()
