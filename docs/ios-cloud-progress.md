@@ -78,6 +78,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-09 Actions依存設定修正: OIDC修正のPR #3をmainへマージし、run `34334961023` でAWS role引受け成功を確認した。次の `pnpm install --frozen-lockfile` は、`infra/cdk/pnpm-workspace.yaml` の自動生成された未確定値によりesbuildのbuild scriptを拒否した。許可を `allowBuilds.esbuild: true` と明示し、一時ディレクトリのclean installとesbuildを使うtsx起動に成功した。CDK・runtime・DNS更新はこのrunでも未実行。
 - 2026-09-09 Actions SSH修正: 依存設定修正のPR #4をmainへマージし、run `34335174119` でOIDC、clean install、CDK synth/deployが成功した。runtime転送ではLightsail APIの `hostKeys` が空配列だったため、空のknown_hostsを使った厳格確認がSSH接続を拒否した。SSH 22をrunnerのIPv4 `/32` だけに一時開放した後、APIから鍵を取得できない場合に `ssh-keyscan` で取得し、非空を確認してから `StrictHostKeyChecking=yes` で接続するよう修正した。cleanupで22番を閉じたことを確認済み。runtime・DNS更新は未完了。
 - 2026-09-09 Actions dotenv修正: SSH修正のPR #5をmainへマージし、run `34335553302` でOIDC、CDK、SSHホスト鍵確認、ファイル転送まで成功した。Compose起動時に、実改行を含むDB CA証明書がdotenvの複数行として出力され、証明書本文を変数名と誤認して停止した。jqの `@json` で全env値を二重引用・エスケープしてからAPI/worker用dotenvへ書くよう修正した。秘密値はログへ出力されていない。runtime・DNS更新は未完了。
+- 2026-09-09 runtime初回起動: dotenv修正のPR #6をmainへマージし、run `34335801812` でAPI/workerイメージのbuildと3コンテナの起動まで成功した。起動2秒後の単発health checkはconnection refusedで失敗し、後続DNS stepは未実行。公開HTTPSはCaddyへ接続できるが、Crunchy Bridge firewallが暫定operator IPだけを許可しているためDB healthはタイムアウトする。health checkを最大約1分再試行するよう修正した。次はfirewallへLightsail static IPを追加して疎通確認後、暫定operator ruleを削除する。
 
 ## 次のエージェントが行うこと
 
