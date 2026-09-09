@@ -110,6 +110,10 @@ jobs:
           jq -r '.accessDetails.privateKey' <<<"$access" > .deploy-tmp/key
           jq -r '.accessDetails.certKey' <<<"$access" > .deploy-tmp/key-cert.pub
           jq -r --arg host "$host" '.accessDetails.hostKeys[] | "\($host) \(.publicKey)"' <<<"$access" > .deploy-tmp/known_hosts
+          if [[ ! -s .deploy-tmp/known_hosts ]]; then
+            ssh-keyscan -H -T 10 "$host" > .deploy-tmp/known_hosts
+          fi
+          [[ -s .deploy-tmp/known_hosts ]]
           chmod 600 .deploy-tmp/key
           ssh_options=(-i .deploy-tmp/key -o CertificateFile=.deploy-tmp/key-cert.pub -o UserKnownHostsFile=.deploy-tmp/known_hosts -o StrictHostKeyChecking=yes)
           scp "${ssh_options[@]}" .deploy-tmp/api.tgz "$user@$host:/tmp/wagaya-api.tgz"
