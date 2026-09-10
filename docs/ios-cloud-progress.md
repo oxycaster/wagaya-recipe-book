@@ -104,6 +104,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-11 本番反映とTestFlight build 7: 旧版互換処理を含むActions run `34497909780` はmigration、runtime、公開health、DNSまで成功。本番APIは `https://api.wagaya.oxycaster.com/health` で200を確認した。EAS production build `9fe537eb-cec9-4803-b7e1-b0e5189f1ac6`（build 7）は完了し、App Store Connect submission `d1084f2c-d588-400b-b780-95131d456510` はEASキュー待ち。Apple処理後、TestFlightで最大権数ダイアログ、キッコーマン実抽出、画像付きカード、確定消費を確認する。
 - 2026-09-11 キッコーマン実抽出の照合修正: 最新ジョブは2断片とも同じ単一レシピを検出し、最終抽出も完了していた。タイトル、全材料名・分量、手順2/3は原本と完全一致し、残る手順も4文字連続一致率85.3%だったが、句読点・接続表現を含む完全一致検証で `needs_review` になっていた。材料名・分量の完全一致は維持し、長い手順は85%以上、根拠文は全件50%以上かつ2件以上80%以上の原本一致を要求する検証へ修正した。
 - 2026-09-11 照合修正の本番受入: API 26/26とモバイル型検査に成功し、Actions run `34515129895` でmigration、runtime、公開health、DNSまで正常完了した。失敗済みの対象ジョブだけを条件付きで再キューし、保存済みチェックポイント3件を再利用して追加のモデル呼び出しなしで `succeeded` になった。レシピ作成、予約1権の解除、1権の確定消費をDBで確認した。公開API healthも `{"ok":true}`。TestFlight build 7のsubmission `d1084f2c-d588-400b-b780-95131d456510` は `FINISHED` になった。
+- 2026-09-11 キッコーマン料理写真の復旧: カードの「副」は取得画像ではなく、画像なし時の分類別アートワークだった。対象ページのRecipe JSON-LDとOGPは同じ料理写真を示していたが、CDNがJPEG URLへAVIFを返すため既存の形式検査で保存対象外になっていた。AVIFのISOBMFF署名とbrandを検査して受け入れるよう修正し、API 27/27と実画像取得（AVIF、16,675 bytes）に成功。さらにruntime S3 userへ共有帖画像の `books/*` を最小権限で追加し、Actions run `34516000258` と `34523130304` が成功した。既存カードへ原本から料理写真を無課金で補填し、原本側・カード側のDB参照、S3実体、content typeを確認した。モデル呼び出しは3件のままで追加されていない。
 
 ## 次のエージェントが行うこと
 
