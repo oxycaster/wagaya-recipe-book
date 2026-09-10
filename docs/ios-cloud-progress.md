@@ -103,13 +103,14 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-11 production migration受入: Actions run `34497536325` で `Schema ready`、API/worker再作成、内部・公開health check、DNS stackまで成功した。配布中の旧TestFlight版との移行期間は、最大1権と算出できるページに限ってAPIが見積もりを補完する。複数権ページは新版アプリで明示同意を必要とする。
 - 2026-09-11 本番反映とTestFlight build 7: 旧版互換処理を含むActions run `34497909780` はmigration、runtime、公開health、DNSまで成功。本番APIは `https://api.wagaya.oxycaster.com/health` で200を確認した。EAS production build `9fe537eb-cec9-4803-b7e1-b0e5189f1ac6`（build 7）は完了し、App Store Connect submission `d1084f2c-d588-400b-b780-95131d456510` はEASキュー待ち。Apple処理後、TestFlightで最大権数ダイアログ、キッコーマン実抽出、画像付きカード、確定消費を確認する。
 - 2026-09-11 キッコーマン実抽出の照合修正: 最新ジョブは2断片とも同じ単一レシピを検出し、最終抽出も完了していた。タイトル、全材料名・分量、手順2/3は原本と完全一致し、残る手順も4文字連続一致率85.3%だったが、句読点・接続表現を含む完全一致検証で `needs_review` になっていた。材料名・分量の完全一致は維持し、長い手順は85%以上、根拠文は全件50%以上かつ2件以上80%以上の原本一致を要求する検証へ修正した。
+- 2026-09-11 照合修正の本番受入: API 26/26とモバイル型検査に成功し、Actions run `34515129895` でmigration、runtime、公開health、DNSまで正常完了した。失敗済みの対象ジョブだけを条件付きで再キューし、保存済みチェックポイント3件を再利用して追加のモデル呼び出しなしで `succeeded` になった。レシピ作成、予約1権の解除、1権の確定消費をDBで確認した。公開API healthも `{"ok":true}`。TestFlight build 7のsubmission `d1084f2c-d588-400b-b780-95131d456510` は `FINISHED` になった。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
 2. Clerk production domainは受入済み。API/workerホスティング先のsecret managerへ新しいproduction publishable/secret keyを保存し、Native API、`email` session claim、authorized partyを本番buildで再確認する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
 3. dev Docker PostgreSQL、prod Crunchy Bridge PostgreSQL、dev/prod CDK stack、親DNS、本番API/workerの自動デプロイは受入済み。production `application settings` secretにはDB/Clerk/OpenAIとRevenueCatの商品対応表を含むruntime設定を入力済み。RevenueCat WebhookとApp Store Connect API連携も保存済み。次は隔離した本番テストユーザーでClerk認証付きAPI、S3原本保存、OpenAI抽出を受入する。Production Checkで残るproduction instance/HA/log drain、別クラスタへのバックアップ復元はG2完了前に判断・検証する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、20〜50件のusage/P95原価、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を確認する。App Store Connectの審査用メタデータを補完し、RevenueCatの `Missing Metadata` を解消する。
-4. Paid Apps Agreement、銀行口座、税務フォーム、DSAコンプライアンスはすべて `有効`。iPhoneのproduction build 5で商品2件と日本円価格の表示を再確認する。Sandboxで10回商品を購入し、RevenueCat webhookによる残高+10、同じHTMLの費用見積もり、カード化、画像・材料・手順表示、実usageに応じた権利消費まで確認する。キッコーマンの対象ページが通常1権見積もりになることも確認する。失敗時は秘密やHTML本文を残さず、API/worker/RevenueCatのイベント状態を照合する。
+4. Paid Apps Agreement、銀行口座、税務フォーム、DSAコンプライアンスはすべて `有効`。Sandbox購入、Webhook反映、キッコーマン対象ページの1権見積もりと本番カード作成・1権精算は確認済み。TestFlight build 7で最大権数ダイアログ、作成済みカードの画像・材料・手順表示を実機確認する。失敗時は秘密やHTML本文を残さず、API/worker/RevenueCatのイベント状態を照合する。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 
 ## 主なファイル
