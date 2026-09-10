@@ -125,7 +125,7 @@
 ### M4 App内課金
 
 - App Store ConnectでConsumable商品を新規作成する。販売済み商品の権利数は後から変えず、変更時は新商品IDを追加する。
-- Paid Apps Agreement、税務情報、銀行口座、販売地域を確認する。
+- Paid Apps Agreement、税務情報、銀行口座、販売地域を確認する。2026-09-10にPaid Apps Agreementへ同意し、米国税務フォーム2件は `有効` になった。銀行口座と有料アプリ契約はApple側で `処理中` のため、反映後に未解決警告がないことを再確認する。
 - RevenueCatにiOSアプリ、商品、公開SDKキー、App Store Connect連携を設定する。Sandboxイベントはdev、Productionイベントはprodだけで受け入れ、Webhook秘密を分離する。
 - RevenueCat WebhookのBearer secret、App Store Server Notifications、再送手順、アラートを設定する。
 - Clerk user IDをRevenueCat App User IDとして使用し、匿名購入や別ユーザーへの購入転送を許可しない。
