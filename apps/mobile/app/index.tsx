@@ -1585,6 +1585,7 @@ function Settings({
   const [catalog, setCatalog] = useState<Awaited<ReturnType<typeof products>>>(
     [],
   )
+  const [storefront, setStorefront] = useState<string | null>(null)
   return (
     <>
       <View style={styles.panel}>
@@ -1604,10 +1605,24 @@ function Settings({
             void run(async () => {
               const p = await products(userId)
               setCatalog(p)
-              if (!p.length) notify('現在購入できる商品がありません。')
+              if (!p.length) {
+                const store = await Purchases.getStorefront()
+                const country = store?.countryCode?.toUpperCase() || '取得不可'
+                setStorefront(country)
+                notify(
+                  country === 'JPN'
+                    ? '日本のApp Storeには接続できましたが、商品情報が返りませんでした（診断: IAP-JPN-0）。'
+                    : `App Storeの販売国が日本ではありません（現在: ${country}）。日本のApple Accountで「メディアと購入」にサインインしてください。`,
+                )
+              } else setStorefront(null)
             })
           }
         />
+        {storefront && (
+          <Note>
+            StoreKit診断: 販売国 {storefront} / 取得商品 0件
+          </Note>
+        )}
         {catalog.map((p) => (
           <Button
             key={p.product.identifier}

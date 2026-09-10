@@ -92,6 +92,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-10 Paid Apps Agreement・支払情報: ユーザー承認後にPaid Apps Agreementへ同意した。十六銀行の指定口座を登録し、銀行口座は `処理中`（Apple表示では反映まで最大24時間）。米国税務調査票を経て、`U.S. Form W-8BEN` と `U.S. Certificate of Foreign Status of Beneficial Owner` をユーザーの送信承認後に提出し、両方の送信日が2026-09-10、ステータスが `有効` であることを確認した。税務番号、口座番号などの秘密情報は文書・リポジトリへ保存していない。有料アプリ契約は `処理中`。反映後にStoreKit商品取得を実機で再検証する。
 - 2026-09-10 支払情報反映: App Store Connectを再読込し、有料アプリ契約、十六銀行口座、米国税務フォーム2件、DSAコンプライアンスがすべて `有効` であることを確認した。App Store Connect側の支払・契約ブロックは解消。次はproduction build 5で商品2件を再取得し、Sandbox購入からカード化までを実機受入する。
 - 2026-09-10 契約有効化直後の再試行: production build 5を完全終了・再起動して商品読込を再試行したが、引き続き0件だった。アプリがAPIから取得する2つの商品ID、RevenueCat `getProducts(..., NON_SUBSCRIPTION)`、App Store Connectのproduct IDは一致している。AppleのTN3186ではApp Store Connectの変更がSandboxへ反映されるまで最大1時間かかるため、有効化から1時間以上経過後に再試行する。継続する場合は端末StoreKitログを追加した診断buildを作成する。
+- 2026-09-10 1時間経過後の再試行: production build 5で引き続き商品0件。本番Secrets Managerの `REVENUECAT_PRODUCTS` を値そのもの以外は表示せず検査し、10回・50回商品の両IDと権利数がApp Store Connect設定に一致することを確認した。RevenueCat SDKの `getStorefront()` を使い、0件時にStoreKitの販売国と診断コードを設定画面へ表示する変更を追加。次のproduction buildで、販売国が `JPN` 以外なら端末の「メディアと購入」アカウント、日本で0件ならAppleの商品配信設定として切り分ける。
 
 ## 次のエージェントが行うこと
 
