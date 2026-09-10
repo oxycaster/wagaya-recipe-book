@@ -486,6 +486,32 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
     ),
     null,
   )
+  const punctuationSource = prepareHtml(
+    '<h1>煮びたし</h1><p>なす 2本</p><p>なすを縦半分に切り、鍋でやわらかくなるまで煮る。</p>',
+  )
+  assert.ok(
+    validateExtraction(
+      {
+        isRecipe: true,
+        reason: '',
+        evidence: [
+          '煮びたし',
+          'なす 2本',
+          'なすを縦半分に切り鍋でやわらかくなるまで煮る。',
+        ],
+        recipe: {
+          title: '煮びたし',
+          category: '副菜',
+          minutes: null,
+          servings: null,
+          ingredients: [{ name: 'なす', amount: '2本' }],
+          steps: ['なすを縦半分に切り鍋でやわらかくなるまで煮る。'],
+          tags: [],
+        },
+      },
+      punctuationSource,
+    ),
+  )
   const env = { OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'configured-model' }
   let modelCalls = 0
   const run = extractor(env, async (_url, request) => {

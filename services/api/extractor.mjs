@@ -39,11 +39,27 @@ export function validateExtraction(value, source) {
   if (!result.isRecipe || !result.recipe || !result.evidence.length) return null
   const normalize = (s) => s.normalize('NFKC').replace(/\s+/g, '')
   const haystack = normalize(source.original + ' ' + source.plain + ' ' + source.structured)
-  if (!result.evidence.every((s) => haystack.includes(normalize(s)))) return null
+  const coverage = (claim) => {
+    const normalized = normalize(claim)
+    if (haystack.includes(normalized)) return 1
+    if (normalized.length < 8) return 0
+    let matches = 0
+    const total = normalized.length - 3
+    for (let index = 0; index < total; index++)
+      if (haystack.includes(normalized.slice(index, index + 4))) matches++
+    return matches / total
+  }
+  const evidenceCoverage = result.evidence.map(coverage)
+  if (
+    evidenceCoverage.some((score) => score < 0.5) ||
+    evidenceCoverage.filter((score) => score >= 0.8).length <
+      Math.min(2, evidenceCoverage.length)
+  )
+    return null
   if (!haystack.includes(normalize(result.recipe.title))) return null
   if (!result.recipe.ingredients.every((i) => haystack.includes(normalize(i.name)))) return null
   if (!result.recipe.ingredients.every((i) => !i.amount || haystack.includes(normalize(i.amount)))) return null
-  if (!result.recipe.steps.every((step) => haystack.includes(normalize(step)))) return null
+  if (!result.recipe.steps.every((step) => coverage(step) >= 0.85)) return null
   return result.recipe
 }
 
