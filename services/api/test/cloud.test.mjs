@@ -23,7 +23,7 @@ import {
 let pg, db, svc, admin, testDatabase
 const config = {
   appId: 'app-test',
-  environment: 'SANDBOX',
+  environments: ['SANDBOX'],
   products: { import10: 10 },
 }
 const card = {
@@ -256,6 +256,14 @@ test('refund before purchase, wrong app/env/product/owner and unauthenticated pu
     ),
     { code: 'TRANSACTION_OWNER_MISMATCH' },
   )
+})
+test('production billing config can accept TestFlight sandbox purchases', async () => {
+  const user = await actor()
+  await billingEvent(db, event(user), {
+    ...config,
+    environments: ['PRODUCTION', 'SANDBOX'],
+  })
+  assert.equal((await svc.wallet(user)).balance, 10)
 })
 test('one credit cannot be reserved twice; request replay is stable; successful job debits once', async () => {
   const { user, book } = await setup()

@@ -95,6 +95,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-10 1時間経過後の再試行: production build 5で引き続き商品0件。本番Secrets Managerの `REVENUECAT_PRODUCTS` を値そのもの以外は表示せず検査し、10回・50回商品の両IDと権利数がApp Store Connect設定に一致することを確認した。RevenueCat SDKの `getStorefront()` を使い、0件時にStoreKitの販売国と診断コードを設定画面へ表示する変更を追加。次のproduction buildで、販売国が `JPN` 以外なら端末の「メディアと購入」アカウント、日本で0件ならAppleの商品配信設定として切り分ける。
 - 2026-09-10 診断build 6: EAS build `2df6643d-4ee1-4021-a953-f17db80544bb`（0.1.0 build 6）は成功し、submission `8ff0afd5-f505-420b-970e-ebcf18cd17e2` でApp Store Connectへのバイナリアップロードも成功した。Apple側の処理とTestFlight反映後、設定タブの「購入できる商品を読む」を押し、0件なら表示される `StoreKit診断: 販売国 ... / 取得商品 0件` を記録する。
 - 2026-09-10 build 6 StoreKit診断: 実機で販売国 `JPN`、取得商品0件（`IAP-JPN-0`）を確認した。端末のApp Store販売国、商品ID、価格、日本語ローカリゼーション、日本1地域の配信可否、有料アプリ契約・銀行・税務・DSAはいずれも正常。初回消耗型商品の配信関連付けを補うため、10回・50回商品を同じApp Review提出物へ追加し、両方が `審査準備完了` になったことをApp Store Connectで確認した。iOS 1.0版は公開用メタデータ、カテゴリ、年齢制限、プライバシーURL、連絡先、ビルドが未設定のため提出物へは追加できていない。商品設定の反映後、同じbuild 6で再取得する。引き続き0件ならRevenueCat/StoreKitの詳細ログを端末に安全に表示する診断buildを作る。
+- 2026-09-10 TestFlight購入後の残高不反映: build 6で10回商品をSandbox購入できたが、残高は0のままだった。原因はprod APIのRevenueCat検証が `PRODUCTION` イベントだけを許可し、TestFlightが送る `SANDBOX` イベントを `BILLING_APP_MISMATCH` として拒否する設定だった。許可環境を複数指定できるようにし、prod secretを `PRODUCTION,SANDBOX` へ更新した。store・environment・transaction IDによる冪等性と所有者検証は維持する。API 24/24成功。runtimeを再デプロイ後、RevenueCatから失敗イベントを再送し、残高+10を確認する。
 
 ## 次のエージェントが行うこと
 

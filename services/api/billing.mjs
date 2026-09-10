@@ -25,7 +25,7 @@ export async function billingEvent(db, event, config) {
     .parse(event)
   requireThat(
     e.app_id === config.appId &&
-      e.environment === config.environment &&
+      config.environments.includes(e.environment) &&
       !e.is_family_share,
     400,
     'BILLING_APP_MISMATCH',
