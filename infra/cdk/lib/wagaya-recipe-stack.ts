@@ -31,11 +31,14 @@ export class WagayaRecipeStack extends cdk.Stack {
     runtimeUser.addToPolicy(new iam.PolicyStatement({
       actions: ['s3:ListBucket'],
       resources: [archiveBucket.bucketArn],
-      conditions: { StringLike: { 's3:prefix': ['users/*'] } },
+      conditions: { StringLike: { 's3:prefix': ['users/*', 'books/*'] } },
     }))
     runtimeUser.addToPolicy(new iam.PolicyStatement({
       actions: ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'],
-      resources: [archiveBucket.arnForObjects('users/*')],
+      resources: [
+        archiveBucket.arnForObjects('users/*'),
+        archiveBucket.arnForObjects('books/*'),
+      ],
     }))
     const runtimeAccessKey = new iam.CfnAccessKey(this, 'RuntimeS3AccessKey', {
       userName: runtimeUser.userName,
