@@ -101,6 +101,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-11 見積もり・複数権精算を実装: 15分有効の取り込み見積もり、最大権数へのアプリ内同意、複数権予約、実OpenAI usage相当の確定消費、予約差分返却を追加した。モデル単価、為替、安全原価は環境変数で変更できる。断片ごとのモデル・usage・結果をハッシュ付きでDB保存し、workerは進捗更新時に3分リースを延長する。API統合テストはPGliteとdev Docker PostgreSQL 18の双方で26/26、モバイル `pnpm check` とiOS export、既存Web buildは成功。対象キッコーマンHTMLは72,806 bytes、20,457見積もりトークン、2断片、最大1権、再結合が原本一致となった。実OpenAI、production migration、TestFlightでの長文カード化とP50/P95原価測定は未確認。Simulatorの画面取得はScreenCaptureKitエラーで実施できなかったため、新しい事前確認ダイアログの実機表示は次回buildで確認する。
 - 2026-09-11 production配備手順を修正: runtime更新前に新しいimageをbuildし、APIコンテナの `migrate.mjs` が成功した場合だけAPI/workerを更新するようGitHub Actionsを変更した。初回のコード配備はhealth checkまで成功したがmigrationが含まれていなかったため、この追補デプロイで新規テーブルを適用してから受入する。
 - 2026-09-11 production migration受入: Actions run `34497536325` で `Schema ready`、API/worker再作成、内部・公開health check、DNS stackまで成功した。配布中の旧TestFlight版との移行期間は、最大1権と算出できるページに限ってAPIが見積もりを補完する。複数権ページは新版アプリで明示同意を必要とする。
+- 2026-09-11 本番反映とTestFlight build 7: 旧版互換処理を含むActions run `34497909780` はmigration、runtime、公開health、DNSまで成功。本番APIは `https://api.wagaya.oxycaster.com/health` で200を確認した。EAS production build `9fe537eb-cec9-4803-b7e1-b0e5189f1ac6`（build 7）は完了し、App Store Connect submission `d1084f2c-d588-400b-b780-95131d456510` はEASキュー待ち。Apple処理後、TestFlightで最大権数ダイアログ、キッコーマン実抽出、画像付きカード、確定消費を確認する。
 
 ## 次のエージェントが行うこと
 
