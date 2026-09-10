@@ -648,8 +648,6 @@ test('HTTP requires auth and webhook secret, validates IDs, uploads without publ
       body: JSON.stringify({
         archiveId: a.id,
         requestKey: randomUUID(),
-        quoteId: quote.quoteId,
-        acceptedMaximumCredits: quote.maximumCredits,
         consent: true,
       }),
     })

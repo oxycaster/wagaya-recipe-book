@@ -221,15 +221,28 @@ export function createApp({
     )
   })
   app.post('/v1/books/:book/imports', async (req, res) => {
-    const input = z
+    let input = z
       .object({
         archiveId: uuid,
         requestKey: uuid,
-        quoteId: uuid,
-        acceptedMaximumCredits: z.number().int().positive(),
+        quoteId: uuid.optional(),
+        acceptedMaximumCredits: z.number().int().positive().optional(),
         consent: z.literal(true),
       })
+      .refine(
+        (value) => Boolean(value.quoteId) === Boolean(value.acceptedMaximumCredits),
+      )
       .parse(req.body)
+    if (!input.quoteId) {
+      const archive = await service.archive(user(req), input.archiveId)
+      requireThat(archive.book_id === req.params.book, 404, 'ARCHIVE_NOT_FOUND')
+      const estimate = quoteEstimator(await store.get(archive.object_key))
+      requireThat(estimate.maximumCredits === 1, 409, 'IMPORT_QUOTE_REQUIRED')
+      const quote = await service.createImportQuote(
+        user(req), req.params.book, input.archiveId, estimate,
+      )
+      input = { ...input, quoteId: quote.quoteId, acceptedMaximumCredits: 1 }
+    }
     const j = await service.enqueue(
       user(req),
       req.params.book,

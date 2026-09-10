@@ -40,6 +40,8 @@ const messages: Record<string, string> = {
     '本日の取り込み上限に達しました。明日もう一度お試しください。',
   IMPORT_QUOTE_INVALID:
     '取り込み費用の見積もり期限が切れました。もう一度お試しください。',
+  IMPORT_QUOTE_REQUIRED:
+    'この長いページを取り込むにはアプリを最新版へ更新してください。',
 }
 export async function api<T>(
   path: string,
