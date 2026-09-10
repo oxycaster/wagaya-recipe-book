@@ -91,6 +91,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 商品未取得障害: App Store Connect APIで両商品が `MISSING_METADATA`、審査用スクリーンショットが未登録と確認。設定タブの実画面をSimulatorで1170×2532 PNGとして確認して両商品へ登録した。さらに10回商品だけavailability自体が未作成だったため、50回商品と同じく新規地域自動追加なし・日本1地域で作成した。APIで両商品が `READY_TO_SUBMIT`、RevenueCat画面でも両方 `Ready to Submit` を確認。価格は10回150円・50回600円の既存設定を維持。その後も実機取得が0件のためビジネス画面を確認し、有料アプリ契約が未締結であることを特定した。
 - 2026-09-10 Paid Apps Agreement・支払情報: ユーザー承認後にPaid Apps Agreementへ同意した。十六銀行の指定口座を登録し、銀行口座は `処理中`（Apple表示では反映まで最大24時間）。米国税務調査票を経て、`U.S. Form W-8BEN` と `U.S. Certificate of Foreign Status of Beneficial Owner` をユーザーの送信承認後に提出し、両方の送信日が2026-09-10、ステータスが `有効` であることを確認した。税務番号、口座番号などの秘密情報は文書・リポジトリへ保存していない。有料アプリ契約は `処理中`。反映後にStoreKit商品取得を実機で再検証する。
 - 2026-09-10 支払情報反映: App Store Connectを再読込し、有料アプリ契約、十六銀行口座、米国税務フォーム2件、DSAコンプライアンスがすべて `有効` であることを確認した。App Store Connect側の支払・契約ブロックは解消。次はproduction build 5で商品2件を再取得し、Sandbox購入からカード化までを実機受入する。
+- 2026-09-10 契約有効化直後の再試行: production build 5を完全終了・再起動して商品読込を再試行したが、引き続き0件だった。アプリがAPIから取得する2つの商品ID、RevenueCat `getProducts(..., NON_SUBSCRIPTION)`、App Store Connectのproduct IDは一致している。AppleのTN3186ではApp Store Connectの変更がSandboxへ反映されるまで最大1時間かかるため、有効化から1時間以上経過後に再試行する。継続する場合は端末StoreKitログを追加した診断buildを作成する。
 
 ## 次のエージェントが行うこと
 
