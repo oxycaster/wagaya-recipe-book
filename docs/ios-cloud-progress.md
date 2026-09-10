@@ -96,6 +96,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-10 診断build 6: EAS build `2df6643d-4ee1-4021-a953-f17db80544bb`（0.1.0 build 6）は成功し、submission `8ff0afd5-f505-420b-970e-ebcf18cd17e2` でApp Store Connectへのバイナリアップロードも成功した。Apple側の処理とTestFlight反映後、設定タブの「購入できる商品を読む」を押し、0件なら表示される `StoreKit診断: 販売国 ... / 取得商品 0件` を記録する。
 - 2026-09-10 build 6 StoreKit診断: 実機で販売国 `JPN`、取得商品0件（`IAP-JPN-0`）を確認した。端末のApp Store販売国、商品ID、価格、日本語ローカリゼーション、日本1地域の配信可否、有料アプリ契約・銀行・税務・DSAはいずれも正常。初回消耗型商品の配信関連付けを補うため、10回・50回商品を同じApp Review提出物へ追加し、両方が `審査準備完了` になったことをApp Store Connectで確認した。iOS 1.0版は公開用メタデータ、カテゴリ、年齢制限、プライバシーURL、連絡先、ビルドが未設定のため提出物へは追加できていない。商品設定の反映後、同じbuild 6で再取得する。引き続き0件ならRevenueCat/StoreKitの詳細ログを端末に安全に表示する診断buildを作る。
 - 2026-09-10 TestFlight購入後の残高不反映: build 6で10回商品をSandbox購入できたが、残高は0のままだった。RevenueCatでは当該ユーザーの10回・150円・`SANDBOX` 購入を確認したが、WebhookがProduction onlyだったためイベントは配信されていなかった。prod APIもTestFlightを受け入れられるよう、許可環境を複数指定可能にしてprod secretを `PRODUCTION,SANDBOX` へ更新した。PR #19をmainへマージし、Actions run `34472135311` は全工程成功。RevenueCat WebhookをBoth Production and Sandboxへ変更して保存した。未配信だった購入イベントを本番Webhookへ再処理すると `accepted: true`、同じイベントの再送は `duplicate: true` となり、冪等性を確認した。store・environment・transaction IDによる分離と所有者検証は維持され、API 24/24成功。次はアプリの更新操作で残高10回を確認し、カード化受入へ進む。
+- 2026-09-10 長いHTMLへの設計原則: キッコーマンの実ページが40,000文字のモデル入力上限を超えて `SOURCE_TOO_LARGE_FOR_MODEL` になった。広告・ナビゲーションを推定して機械的に除去する案は、多様な未知サイトへの対応を損なうため採用しない。原本HTMLを改変せず保持し、サイト固有ルールにも依存しないことを基本原則として計画書へ追記した。次の実装は、原本を欠落なく分割してLLMで段階的に判定・統合する方式を設計し、複数レシピや断片間の曖昧さを `needs_review` にする。現時点では抽出コードを変更していない。
 
 ## 次のエージェントが行うこと
 
