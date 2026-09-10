@@ -43,6 +43,7 @@ import type {
   Plan,
   Recipe,
   Wallet,
+  ImportQuote,
 } from '../src/types'
 import { scaleAmount } from '../../../src/quantities'
 
@@ -1069,10 +1070,28 @@ function Imports({
   }, [book.id])
   const start = (a: Archive) =>
     void run(async () => {
+      const quote = await api<ImportQuote>(
+        `/books/${book.id}/archives/${a.id}/import-quote`,
+        'POST',
+      )
+      const accepted = await new Promise<boolean>((resolve) =>
+        Alert.alert(
+          'カード化に使用する取り込み権',
+          `このページには最大${quote.maximumCredits}回分を使用します。処理が安く完了した場合は差分を返却し、失敗・要確認では消費しません。`,
+          [
+            { text: 'キャンセル', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'カード化する', onPress: () => resolve(true) },
+          ],
+          { cancelable: true, onDismiss: () => resolve(false) },
+        ),
+      )
+      if (!accepted) return
       if (!keys.current.has(a.id)) keys.current.set(a.id, Crypto.randomUUID())
       await api(`/books/${book.id}/imports`, 'POST', {
         archiveId: a.id,
         requestKey: keys.current.get(a.id),
+        quoteId: quote.quoteId,
+        acceptedMaximumCredits: quote.maximumCredits,
         consent: true,
       })
       keys.current.delete(a.id)
@@ -1155,7 +1174,7 @@ function Imports({
       <View style={styles.panel}>
         <Text style={styles.heading}>カード化の確認</Text>
         <Note>
-          1件のカード作成につき取り込み権を1回分消費します。HTMLをOpenAIへ送信して整理します。失敗・要確認では消費しません。ログインが必要なページや読み取れないページには対応できない場合があります。
+          HTMLの長さから最大使用回数を事前に表示します。実際の処理が安く完了した場合は差分を返却し、失敗・要確認では消費しません。HTMLをOpenAIへ送信して整理します。
         </Note>
         <View style={styles.row}>
           <Switch
@@ -1178,18 +1197,21 @@ function Imports({
           <Text style={styles.badge}>
             {a.status ? labels[a.status] : '保存済み・未取り込み'}
           </Text>
+          {a.status === 'processing' && Boolean(a.total_chunks) && (
+            <Note>
+              断片を確認中: {a.processed_chunks ?? 0}/{a.total_chunks}
+            </Note>
+          )}
           {(a.status === 'needs_review' || a.status === 'failed') && (
             <Note>
-              {a.error_code === 'SOURCE_TOO_LARGE_FOR_MODEL'
-                ? 'ページが長いため自動整理できませんでした。'
-                : '原本に材料と作り方が揃っているか確認してください。'}
+              原本に材料と作り方が揃っているか確認してください。
             </Note>
           )}
           {!['queued', 'processing', 'succeeded'].includes(a.status || '') &&
             book.role !== 'viewer' && (
               <Button
                 label={
-                  a.status ? 'もう一度カード化する' : '1回分でカード化する'
+                  a.status ? 'もう一度カード化する' : '費用を確認してカード化する'
                 }
                 disabled={busy || !consent}
                 onPress={() => start(a)}

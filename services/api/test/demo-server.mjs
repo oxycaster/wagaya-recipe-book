@@ -106,7 +106,11 @@ for (const card of cards) {
     sha256: hash(card.title),
   })
   objects.set(archive.object_key, `<h1>${card.title}</h1>`)
-  await svc.enqueue(id, book.id, archive.id, randomUUID())
+  const quote = await svc.createImportQuote(id, book.id, archive.id, {
+    estimatedInputTokens: 20,
+    maximumCredits: 1,
+  })
+  await svc.enqueue(id, book.id, archive.id, randomUUID(), quote.quoteId, 1)
   await processOne(db, store, async () => ({ card, model: 'local-fixture' }))
 }
 const secret = 'local-simulator-fixture-only-not-a-real-token'

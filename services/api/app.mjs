@@ -12,6 +12,7 @@ import {
   userId,
 } from './domain.mjs'
 import { billingEvent } from './billing.mjs'
+import { estimateImport } from './import-cost.mjs'
 import {
   fetchHtml,
   fetchImage,
@@ -27,6 +28,7 @@ export function createApp({
   config,
   fetchPage = fetchHtml,
   fetchPageImage = fetchImage,
+  quoteEstimator = (html) => estimateImport(html),
 }) {
   const app = express(),
     service = domain(db)
@@ -205,17 +207,46 @@ export function createApp({
       })
       .send(await store.get(a.object_key))
   })
+  app.post('/v1/books/:book/archives/:id/import-quote', async (req, res) => {
+    const archive = await service.archive(user(req), req.params.id)
+    requireThat(archive.book_id === req.params.book, 404, 'ARCHIVE_NOT_FOUND')
+    const estimate = quoteEstimator(await store.get(archive.object_key))
+    res.status(201).json(
+      await service.createImportQuote(
+        user(req),
+        req.params.book,
+        req.params.id,
+        estimate,
+      ),
+    )
+  })
   app.post('/v1/books/:book/imports', async (req, res) => {
     const input = z
-      .object({ archiveId: uuid, requestKey: uuid, consent: z.literal(true) })
+      .object({
+        archiveId: uuid,
+        requestKey: uuid,
+        quoteId: uuid,
+        acceptedMaximumCredits: z.number().int().positive(),
+        consent: z.literal(true),
+      })
       .parse(req.body)
     const j = await service.enqueue(
       user(req),
       req.params.book,
       input.archiveId,
       input.requestKey,
+      input.quoteId,
+      input.acceptedMaximumCredits,
     )
-    res.status(202).json({ id: j.id, status: j.status })
+    res.status(202).json({
+      id: j.id,
+      status: j.status,
+      phase: j.phase,
+      processedChunks: j.processed_chunks,
+      totalChunks: j.total_chunks,
+      reservedCredits: j.reserved_credits,
+      consumedCredits: j.consumed_credits,
+    })
   })
   app.get('/v1/wallet', async (req, res) =>
     res.json(await service.wallet(user(req))),

@@ -32,6 +32,17 @@ export type Archive = {
     | 'failed'
     | 'needs_review'
   error_code: string | null
+  phase?: string
+  processed_chunks?: number
+  total_chunks?: number
+  reserved_credits?: number
+  consumed_credits?: number
+}
+export type ImportQuote = {
+  quoteId: string
+  estimatedInputTokens: number
+  maximumCredits: number
+  expiresAt: string
 }
 export type Plan = {
   version: number

@@ -280,12 +280,42 @@ export function domain(db) {
         await member(c, user, book)
         return (
           await c.query(
-            `SELECT a.id,a.source_url,a.created_at,j.status,j.error_code,j.id AS job_id FROM archives a
+            `SELECT a.id,a.source_url,a.created_at,j.status,j.error_code,j.id AS job_id,
+             j.phase,j.processed_chunks,j.total_chunks,j.reserved_credits,j.consumed_credits
+             FROM archives a
         LEFT JOIN LATERAL (SELECT * FROM jobs WHERE archive_id=a.id ORDER BY created_at DESC LIMIT 1) j ON true
         WHERE a.user_id=$1 AND a.book_id=$2 ORDER BY a.created_at DESC`,
             [user, book],
           )
         ).rows
+      }),
+    createImportQuote: (user, book, archive, estimate) =>
+      run(user, async (c) => {
+        await member(c, user, book, ['owner', 'editor'])
+        const found = (
+          await c.query(
+            'SELECT id FROM archives WHERE id=$1 AND user_id=$2 AND book_id=$3',
+            [archive, user, book],
+          )
+        ).rows[0]
+        requireThat(found, 404, 'ARCHIVE_NOT_FOUND')
+        const id = randomUUID()
+        return (
+          await c.query(
+            `INSERT INTO import_quotes(id,user_id,book_id,archive_id,estimated_input_tokens,maximum_credits,expires_at)
+             VALUES($1,$2,$3,$4,$5,$6,now()+interval '15 minutes')
+             RETURNING id AS "quoteId",estimated_input_tokens AS "estimatedInputTokens",
+             maximum_credits AS "maximumCredits",expires_at AS "expiresAt"`,
+            [
+              id,
+              user,
+              book,
+              archive,
+              estimate.estimatedInputTokens,
+              estimate.maximumCredits,
+            ],
+          )
+        ).rows[0]
       }),
     archive: (user, id) =>
       run(user, async (c) => {
@@ -298,7 +328,7 @@ export function domain(db) {
         requireThat(a, 404, 'ARCHIVE_NOT_FOUND')
         return a
       }),
-    enqueue: (user, book, archive, key) =>
+    enqueue: (user, book, archive, key, quoteId, acceptedCredits) =>
       run(user, async (c) => {
         await member(c, user, book, ['owner', 'editor'])
         const a = (
@@ -329,17 +359,37 @@ export function domain(db) {
           )
         ).rows[0]
         if (active) return active
+        const quote = (
+          await c.query(
+            `SELECT * FROM import_quotes WHERE id=$1 AND user_id=$2 AND book_id=$3 AND archive_id=$4 FOR UPDATE`,
+            [quoteId, user, book, archive],
+          )
+        ).rows[0]
+        requireThat(
+          quote &&
+            !quote.used_by &&
+            +new Date(quote.expires_at) > Date.now() &&
+            quote.maximum_credits === acceptedCredits,
+          409,
+          'IMPORT_QUOTE_INVALID',
+        )
         const wallet = (
           await c.query('SELECT * FROM wallets WHERE user_id=$1 FOR UPDATE', [
             user,
           ])
         ).rows[0]
         requireThat(
-          wallet.balance - wallet.reserved >= 1,
+          wallet.balance - wallet.reserved >= quote.maximum_credits,
           402,
           'INSUFFICIENT_CREDITS',
         )
-        requireThat(wallet.reserved < 5, 429, 'TOO_MANY_IMPORTS')
+        const pending = (
+          await c.query(
+            "SELECT count(*)::int AS n FROM jobs WHERE user_id=$1 AND status IN ('queued','processing')",
+            [user],
+          )
+        ).rows[0].n
+        requireThat(pending < 5, 429, 'TOO_MANY_IMPORTS')
         const recent = (
           await c.query(
             "SELECT count(*)::int AS n FROM jobs WHERE user_id=$1 AND created_at>now()-interval '1 day'",
@@ -348,15 +398,29 @@ export function domain(db) {
         ).rows[0].n
         requireThat(recent < 100, 429, 'DAILY_IMPORT_LIMIT')
         await c.query(
-          'UPDATE wallets SET reserved=reserved+1 WHERE user_id=$1',
-          [user],
+          'UPDATE wallets SET reserved=reserved+$2 WHERE user_id=$1',
+          [user, quote.maximum_credits],
         )
-        return (
+        const job = (
           await c.query(
-            "INSERT INTO jobs(id,user_id,book_id,archive_id,request_key,status) VALUES($1,$2,$3,$4,$5,'queued') RETURNING *",
-            [randomUUID(), user, book, archive, key],
+            `INSERT INTO jobs(id,user_id,book_id,archive_id,request_key,status,quote_id,reserved_credits)
+             VALUES($1,$2,$3,$4,$5,'queued',$6,$7) RETURNING *`,
+            [
+              randomUUID(),
+              user,
+              book,
+              archive,
+              key,
+              quote.id,
+              quote.maximum_credits,
+            ],
           )
         ).rows[0]
+        await c.query('UPDATE import_quotes SET used_by=$2 WHERE id=$1', [
+          quote.id,
+          job.id,
+        ])
+        return job
       }),
     wallet: (user) =>
       run(user, async (c) => {

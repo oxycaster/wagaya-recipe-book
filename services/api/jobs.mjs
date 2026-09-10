@@ -47,6 +47,10 @@ export async function finishJob(db, job, result, errorCode = null) {
         : result?.card
           ? 'succeeded'
           : 'needs_review'
+    const consumed =
+      status === 'succeeded'
+        ? Math.max(1, Math.min(fresh.reserved_credits, result.creditsUsed || 1))
+        : 0
     if (status === 'succeeded') {
       const archive = (
         await c.query('SELECT source_url FROM archives WHERE id=$1', [
@@ -69,16 +73,17 @@ export async function finishJob(db, job, result, errorCode = null) {
         ],
       )
       await c.query(
-        'INSERT INTO ledger(id,user_id,delta,reason,reference) VALUES($1,$2,-1,$3,$4)',
-        [randomUUID(), job.user_id, 'IMPORT', `import:${job.id}`],
+        'INSERT INTO ledger(id,user_id,delta,reason,reference) VALUES($1,$2,$3,$4,$5)',
+        [randomUUID(), job.user_id, -consumed, 'IMPORT', `import:${job.id}`],
       )
     }
     await c.query(
-      'UPDATE wallets SET reserved=reserved-1,balance=balance-$2 WHERE user_id=$1',
-      [job.user_id, status === 'succeeded' ? 1 : 0],
+      'UPDATE wallets SET reserved=reserved-$2,balance=balance-$3 WHERE user_id=$1',
+      [job.user_id, fresh.reserved_credits, consumed],
     )
     await c.query(
-      `UPDATE jobs SET status=$2,error_code=$3,lease_token=NULL,lease_until=NULL,updated_at=now(),model=$4,usage=$5 WHERE id=$1`,
+      `UPDATE jobs SET status=$2,error_code=$3,lease_token=NULL,lease_until=NULL,
+       updated_at=now(),model=$4,usage=$5,consumed_credits=$6,phase=$7 WHERE id=$1`,
       [
         job.id,
         status,
@@ -88,6 +93,8 @@ export async function finishJob(db, job, result, errorCode = null) {
             (status === 'needs_review' ? 'SOURCE_REVIEW_REQUIRED' : null),
         result?.model || null,
         result?.usage ? JSON.stringify(result.usage) : null,
+        consumed,
+        status,
       ],
     )
     return { status }
@@ -119,7 +126,36 @@ export async function processOne(db, store, extract) {
         [job.archive_id],
       )
     ).rows[0]
-    result = await extract(await store.get(fullArchive.object_key))
+    const checkpoint = {
+      load: async (phase, chunkIndex, chunkHash) =>
+        (
+          await db.query(
+            `SELECT result,usage,model FROM job_model_calls
+             WHERE job_id=$1 AND phase=$2 AND chunk_index=$3 AND chunk_hash=$4 AND status='completed'`,
+            [job.id, phase, chunkIndex, chunkHash],
+          )
+        ).rows[0],
+      save: async (phase, chunkIndex, chunkHash, value) => {
+        await db.query(
+          `INSERT INTO job_model_calls(id,job_id,phase,chunk_index,chunk_hash,model,status,result,usage)
+           VALUES($1,$2,$3,$4,$5,$6,'completed',$7,$8) ON CONFLICT DO NOTHING`,
+          [
+            randomUUID(), job.id, phase, chunkIndex, chunkHash, value.model,
+            JSON.stringify(value.result), JSON.stringify(value.usage),
+          ],
+        )
+      },
+      progress: async (phase, processed, total) => {
+        const updated = await db.query(
+          `UPDATE jobs SET phase=$3,processed_chunks=$4,total_chunks=$5,
+           lease_until=now()+interval '3 minutes',updated_at=now()
+           WHERE id=$1 AND lease_token=$2 RETURNING id`,
+          [job.id, job.lease_token, phase, processed, total],
+        )
+        if (!updated.rows.length) throw new Error('STALE_LEASE')
+      },
+    }
+    result = await extract(await store.get(fullArchive.object_key), checkpoint)
     if (result.card && fullArchive.image_key) {
       const imageKey = `books/${job.book_id}/recipes/${job.id}.image`
       await store.copy(
@@ -134,7 +170,7 @@ export async function processOne(db, store, extract) {
     error = [
       'RETRY_LIMIT',
       'BOOK_ACCESS_REVOKED',
-      'SOURCE_TOO_LARGE_FOR_MODEL',
+      'STALE_LEASE',
     ].includes(e.message)
       ? e.message
       : 'IMPORT_FAILED'

@@ -38,6 +38,8 @@ const messages: Record<string, string> = {
   TOO_MANY_IMPORTS: '取り込みが終わるまでお待ちください。',
   DAILY_IMPORT_LIMIT:
     '本日の取り込み上限に達しました。明日もう一度お試しください。',
+  IMPORT_QUOTE_INVALID:
+    '取り込み費用の見積もり期限が切れました。もう一度お試しください。',
 }
 export async function api<T>(
   path: string,

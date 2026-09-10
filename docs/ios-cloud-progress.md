@@ -1,6 +1,6 @@
 # 進捗・引き継ぎ
 
-更新: 2026-09-10
+更新: 2026-09-11
 
 ## 現在地
 
@@ -97,13 +97,15 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - 2026-09-10 build 6 StoreKit診断: 実機で販売国 `JPN`、取得商品0件（`IAP-JPN-0`）を確認した。端末のApp Store販売国、商品ID、価格、日本語ローカリゼーション、日本1地域の配信可否、有料アプリ契約・銀行・税務・DSAはいずれも正常。初回消耗型商品の配信関連付けを補うため、10回・50回商品を同じApp Review提出物へ追加し、両方が `審査準備完了` になったことをApp Store Connectで確認した。iOS 1.0版は公開用メタデータ、カテゴリ、年齢制限、プライバシーURL、連絡先、ビルドが未設定のため提出物へは追加できていない。商品設定の反映後、同じbuild 6で再取得する。引き続き0件ならRevenueCat/StoreKitの詳細ログを端末に安全に表示する診断buildを作る。
 - 2026-09-10 TestFlight購入後の残高不反映: build 6で10回商品をSandbox購入できたが、残高は0のままだった。RevenueCatでは当該ユーザーの10回・150円・`SANDBOX` 購入を確認したが、WebhookがProduction onlyだったためイベントは配信されていなかった。prod APIもTestFlightを受け入れられるよう、許可環境を複数指定可能にしてprod secretを `PRODUCTION,SANDBOX` へ更新した。PR #19をmainへマージし、Actions run `34472135311` は全工程成功。RevenueCat WebhookをBoth Production and Sandboxへ変更して保存した。未配信だった購入イベントを本番Webhookへ再処理すると `accepted: true`、同じイベントの再送は `duplicate: true` となり、冪等性を確認した。store・environment・transaction IDによる分離と所有者検証は維持され、API 24/24成功。次はアプリの更新操作で残高10回を確認し、カード化受入へ進む。
 - 2026-09-10 長いHTMLへの設計原則: キッコーマンの実ページが40,000文字のモデル入力上限を超えて `SOURCE_TOO_LARGE_FOR_MODEL` になった。広告・ナビゲーションを推定して機械的に除去する案は、多様な未知サイトへの対応を損なうため採用しない。原本HTMLを改変せず保持し、サイト固有ルールにも依存しないことを基本原則として計画書へ追記した。次の実装は、原本を欠落なく分割してLLMで段階的に判定・統合する方式を設計し、複数レシピや断片間の曖昧さを `needs_review` にする。現時点では抽出コードを変更していない。
+- 2026-09-11 長いHTMLの段階抽出を実装: 40,000文字制限と機械的な要素除去を廃止し、原本順を保った約12,000トークン以下の断片を `gpt-4o-mini-2024-07-18` ですべて判定し、単一候補と必要な隣接断片だけを高精度モデルへ渡す構成に変更した。複数候補、曖昧、候補が24,000トークンを超える場合は `needs_review` として権利を消費しない。最終カードは原本全体との出典照合を維持する。
+- 2026-09-11 見積もり・複数権精算を実装: 15分有効の取り込み見積もり、最大権数へのアプリ内同意、複数権予約、実OpenAI usage相当の確定消費、予約差分返却を追加した。モデル単価、為替、安全原価は環境変数で変更できる。断片ごとのモデル・usage・結果をハッシュ付きでDB保存し、workerは進捗更新時に3分リースを延長する。API統合テストはPGliteとdev Docker PostgreSQL 18の双方で26/26、モバイル `pnpm check` とiOS export、既存Web buildは成功。対象キッコーマンHTMLは72,806 bytes、20,457見積もりトークン、2断片、最大1権、再結合が原本一致となった。実OpenAI、production migration、TestFlightでの長文カード化とP50/P95原価測定は未確認。Simulatorの画面取得はScreenCaptureKitエラーで実施できなかったため、新しい事前確認ダイアログの実機表示は次回buildで確認する。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
 2. Clerk production domainは受入済み。API/workerホスティング先のsecret managerへ新しいproduction publishable/secret keyを保存し、Native API、`email` session claim、authorized partyを本番buildで再確認する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
 3. dev Docker PostgreSQL、prod Crunchy Bridge PostgreSQL、dev/prod CDK stack、親DNS、本番API/workerの自動デプロイは受入済み。production `application settings` secretにはDB/Clerk/OpenAIとRevenueCatの商品対応表を含むruntime設定を入力済み。RevenueCat WebhookとApp Store Connect API連携も保存済み。次は隔離した本番テストユーザーでClerk認証付きAPI、S3原本保存、OpenAI抽出を受入する。Production Checkで残るproduction instance/HA/log drain、別クラスタへのバックアップ復元はG2完了前に判断・検証する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、20〜50件のusage/P95原価、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を確認する。App Store Connectの審査用メタデータを補完し、RevenueCatの `Missing Metadata` を解消する。
-4. Paid Apps Agreement、銀行口座、税務フォーム、DSAコンプライアンスはすべて `有効`。iPhoneのproduction build 5で商品2件と日本円価格の表示を再確認する。Sandboxで10回商品を購入し、RevenueCat webhookによる残高+10、同じHTMLのカード化、画像・材料・手順表示、権利1回消費まで確認する。失敗時は秘密やHTML本文を残さず、API/worker/RevenueCatのイベント状態を照合する。
+4. Paid Apps Agreement、銀行口座、税務フォーム、DSAコンプライアンスはすべて `有効`。iPhoneのproduction build 5で商品2件と日本円価格の表示を再確認する。Sandboxで10回商品を購入し、RevenueCat webhookによる残高+10、同じHTMLの費用見積もり、カード化、画像・材料・手順表示、実usageに応じた権利消費まで確認する。キッコーマンの対象ページが通常1権見積もりになることも確認する。失敗時は秘密やHTML本文を残さず、API/worker/RevenueCatのイベント状態を照合する。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 
 ## 主なファイル

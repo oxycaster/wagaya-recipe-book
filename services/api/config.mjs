@@ -44,6 +44,16 @@ export function config(env = process.env, { worker = false } = {}) {
       ))
   )
     throw new Error('Invalid products')
+  for (const name of [
+    'OPENAI_SCAN_INPUT_USD_PER_MILLION',
+    'OPENAI_SCAN_OUTPUT_USD_PER_MILLION',
+    'OPENAI_EXTRACTION_INPUT_USD_PER_MILLION',
+    'OPENAI_EXTRACTION_OUTPUT_USD_PER_MILLION',
+    'OPENAI_JPY_PER_USD',
+    'OPENAI_COST_JPY_PER_CREDIT',
+  ])
+    if (env[name] !== undefined && (!Number.isFinite(Number(env[name])) || Number(env[name]) <= 0))
+      throw new Error(`Invalid ${name}`)
   return {
     webhookSecret: env.REVENUECAT_WEBHOOK_SECRET,
     billing: {

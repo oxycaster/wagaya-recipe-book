@@ -13,12 +13,12 @@ import { claimJob, finishJob, processOne, cleanupOne } from '../jobs.mjs'
 import { createApp } from '../app.mjs'
 import { imageCandidate, isPublicIP, fetchHtml } from '../fetch-html.mjs'
 import {
-  MAX_MODEL_INPUT_CHARACTERS,
   MAX_MODEL_OUTPUT_TOKENS,
   prepareHtml,
   validateExtraction,
   extractor,
 } from '../extractor.mjs'
+import { estimateImport, splitHtml, MAX_SCAN_OUTPUT_TOKENS } from '../import-cost.mjs'
 
 let pg, db, svc, admin, testDatabase
 const config = {
@@ -76,6 +76,13 @@ async function setup() {
   const user = await actor(),
     book = await svc.createBook(user, '家族')
   return { user, book: book.id }
+}
+async function enqueue(user, book, archive, key = randomUUID(), credits = 1) {
+  const quote = await svc.createImportQuote(user, book, archive, {
+    estimatedInputTokens: 100,
+    maximumCredits: credits,
+  })
+  return svc.enqueue(user, book, archive, key, quote.quoteId, credits)
 }
 function event(user, overrides = {}) {
   return {
@@ -169,7 +176,7 @@ test('saved source image follows the card and is readable by family members', as
     sha256: hash(randomUUID()),
   })
   objects.set(source.object_key, html)
-  await svc.enqueue(user, book, source.id, randomUUID())
+  await enqueue(user, book, source.id, randomUUID())
   await processOne(
     db,
     {
@@ -275,12 +282,12 @@ test('one credit cannot be reserved twice; request replay is stable; successful 
     b = await archive(user, book),
     key = randomUUID()
   const results = await Promise.allSettled([
-    svc.enqueue(user, book, a.id, key),
-    svc.enqueue(user, book, b.id, randomUUID()),
+    enqueue(user, book, a.id, key),
+    enqueue(user, book, b.id, randomUUID()),
   ])
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1)
   const j = results[0].value
-  assert.equal((await svc.enqueue(user, book, a.id, key)).id, j.id)
+  assert.equal((await enqueue(user, book, a.id, key)).id, j.id)
   const claimed = await claimJob(db)
   await finishJob(db, claimed, { card, model: 'test', usage: {} })
   await finishJob(db, claimed, { card, model: 'test', usage: {} })
@@ -288,16 +295,35 @@ test('one credit cannot be reserved twice; request replay is stable; successful 
   assert.equal((await svc.wallet(user)).balance, 0)
   assert.equal((await svc.wallet(user)).reserved, 0)
 })
+test('multi-credit quote reserves its maximum and settles actual usage', async () => {
+  const { user, book } = await setup()
+  await billingEvent(db, event(user), config)
+  const a = await archive(user, book)
+  const job = await enqueue(user, book, a.id, randomUUID(), 3)
+  assert.equal((await svc.wallet(user)).reserved, 3)
+  const claimed = await claimJob(db)
+  assert.equal(claimed.id, job.id)
+  await finishJob(db, claimed, {
+    card,
+    model: 'test',
+    usage: {},
+    creditsUsed: 2,
+  })
+  const wallet = await svc.wallet(user)
+  assert.equal(wallet.balance, 8)
+  assert.equal(wallet.reserved, 0)
+  assert.equal(wallet.ledger[0].delta, -2)
+})
 test('LLM failure/review release reservation; retry creates new job; stale lease cannot commit', async () => {
   const { user, book } = await setup()
   await billingEvent(db, event(user), config)
   const a = await archive(user, book)
-  await svc.enqueue(user, book, a.id, randomUUID())
+  await enqueue(user, book, a.id, randomUUID())
   await processOne(db, { get: async () => html }, async () => {
     throw new Error('timeout')
   })
   assert.equal((await svc.wallet(user)).available, 10)
-  await svc.enqueue(user, book, a.id, randomUUID())
+  await enqueue(user, book, a.id, randomUUID())
   const old = await claimJob(db)
   await db.query(
     "UPDATE jobs SET lease_until=now()-interval '1 second' WHERE id=$1",
@@ -319,7 +345,7 @@ test('membership removal during model request discards card and releases reserva
   await svc.acceptInvite(b, inv.token)
   await billingEvent(db, event(b), config)
   const a = await archive(b, book)
-  await svc.enqueue(b, book, a.id, randomUUID())
+  await enqueue(b, book, a.id, randomUUID())
   const j = await claimJob(db)
   await svc.changeMember(user, book, b, null)
   assert.equal((await finishJob(db, j, { card })).status, 'failed')
@@ -329,7 +355,7 @@ test('plans and cards reject cross-book IDs and stale edits', async () => {
   const { user, book } = await setup()
   await billingEvent(db, event(user), config)
   const a = await archive(user, book)
-  await svc.enqueue(user, book, a.id, randomUUID())
+  await enqueue(user, book, a.id, randomUUID())
   await processOne(db, { get: async () => html }, async () => ({ card }))
   const r = (await svc.recipes(user, book))[0]
   await svc.updateRecipe(user, book, r.id, {
@@ -461,11 +487,26 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
     null,
   )
   const env = { OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'configured-model' }
+  let modelCalls = 0
   const run = extractor(env, async (_url, request) => {
     const body = JSON.parse(request.body)
     assert.equal(body.store, false)
-    assert.equal(body.max_output_tokens, MAX_MODEL_OUTPUT_TOKENS)
     assert.equal(body.text.format.type, 'json_schema')
+    modelCalls++
+    if (modelCalls === 1) {
+      assert.equal(body.max_output_tokens, MAX_SCAN_OUTPUT_TOKENS)
+      return {
+        ok: true,
+        json: async () => ({
+          status: 'completed', model: 'scan', usage: {},
+          output: [{ content: [{ type: 'output_text', text: JSON.stringify({
+            classification: 'single', candidateId: 'recipe-1', evidence: ['卵焼き'],
+            needsPrevious: false, needsNext: false,
+          }) }] }],
+        }),
+      }
+    }
+    assert.equal(body.max_output_tokens, MAX_MODEL_OUTPUT_TOKENS)
     return {
       ok: true,
       json: async () => ({
@@ -483,17 +524,52 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
     /MODEL_INCOMPLETE/,
   )
 })
-test('extraction rejects model input beyond the paid-import limit before calling OpenAI', async () => {
-  const tooLarge = `<html><body>${'あ'.repeat(MAX_MODEL_INPUT_CHARACTERS)}</body></html>`
-  assert.throws(() => prepareHtml(tooLarge), /SOURCE_TOO_LARGE_FOR_MODEL/)
-  let called = false
-  await assert.rejects(
-    extractor({ OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'configured-model' }, async () => {
-      called = true
-    })(tooLarge),
-    /SOURCE_TOO_LARGE_FOR_MODEL/,
+test('completed model phases are reused from checkpoints', async () => {
+  const saved = new Map()
+  let calls = 0
+  const run = extractor(
+    { OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'configured-model' },
+    async (_url, request) => {
+      calls++
+      const body = JSON.parse(request.body)
+      const value =
+        body.max_output_tokens === MAX_SCAN_OUTPUT_TOKENS
+          ? {
+              classification: 'single',
+              candidateId: '卵焼き',
+              evidence: ['卵焼き'],
+              needsPrevious: false,
+              needsNext: false,
+            }
+          : { isRecipe: true, reason: '', evidence: ['卵焼き'], recipe: card }
+      return {
+        ok: true,
+        json: async () => ({
+          status: 'completed',
+          model: body.model,
+          usage: { input_tokens: 10, output_tokens: 10 },
+          output: [{ content: [{ type: 'output_text', text: JSON.stringify(value) }] }],
+        }),
+      }
+    },
   )
-  assert.equal(called, false)
+  const checkpoint = {
+    load: async (phase, index, hash) => saved.get(`${phase}:${index}:${hash}`),
+    save: async (phase, index, hash, value) => saved.set(`${phase}:${index}:${hash}`, value),
+  }
+  assert.deepEqual((await run(html, checkpoint)).card, card)
+  assert.equal(calls, 2)
+  assert.deepEqual((await run(html, checkpoint)).card, card)
+  assert.equal(calls, 2)
+})
+test('long HTML is split without loss and receives a token-based quote', () => {
+  const long = `<html><body>${'長いレシピ'.repeat(500)}</body></html>`
+  const chunks = splitHtml(long, 1000)
+  assert.ok(chunks.length > 1)
+  assert.equal(chunks.join(''), long)
+  const estimate = estimateImport(long)
+  assert.ok(estimate.estimatedInputTokens > 1000)
+  assert.ok(estimate.maximumCredits >= 1)
 })
 test('HTTP requires auth and webhook secret, validates IDs, uploads without public HTML routes', async () => {
   const { user, book } = await setup(),
@@ -556,7 +632,28 @@ test('HTTP requires auth and webhook secret, validates IDs, uploads without publ
     )
     assert.match(raw.headers.get('content-disposition'), /attachment/)
     await billingEvent(db, event(user), config)
-    await svc.enqueue(user, book, a.id, randomUUID())
+    const quoteResponse = await fetch(
+      `${url}/v1/books/${book}/archives/${a.id}/import-quote`,
+      { method: 'POST', headers: { Authorization: `Bearer ${user}` } },
+    )
+    assert.equal(quoteResponse.status, 201)
+    const quote = await quoteResponse.json()
+    assert.equal(quote.maximumCredits, 1)
+    const importResponse = await fetch(`${url}/v1/books/${book}/imports`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${user}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        archiveId: a.id,
+        requestKey: randomUUID(),
+        quoteId: quote.quoteId,
+        acceptedMaximumCredits: quote.maximumCredits,
+        consent: true,
+      }),
+    })
+    assert.equal(importResponse.status, 202)
     await processOne(
       db,
       {
@@ -648,7 +745,7 @@ test('deleting last owner preserves former member reservations until worker refu
   await svc.acceptInvite(b, inv.token)
   await billingEvent(db, event(b), config)
   const a = await archive(b, book)
-  await svc.enqueue(b, book, a.id, randomUUID())
+  await enqueue(b, book, a.id, randomUUID())
   await svc.changeMember(user, book, b, null)
   await svc.deleteAccount(user)
   await cleanupOne(

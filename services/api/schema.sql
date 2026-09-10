@@ -32,8 +32,24 @@ CREATE TABLE IF NOT EXISTS jobs (
  archive_id uuid REFERENCES archives(id) ON DELETE CASCADE, request_key uuid NOT NULL,
  status text NOT NULL CHECK(status IN ('queued','processing','succeeded','needs_review','failed')),
  attempts integer NOT NULL DEFAULT 0, lease_token uuid, lease_until timestamptz, error_code text,
- model text, usage jsonb, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+ model text, usage jsonb, quote_id uuid, reserved_credits integer NOT NULL DEFAULT 1,
+ consumed_credits integer NOT NULL DEFAULT 0, phase text NOT NULL DEFAULT 'queued',
+ processed_chunks integer NOT NULL DEFAULT 0, total_chunks integer NOT NULL DEFAULT 0,
+ created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  UNIQUE(user_id,request_key)
+);
+CREATE TABLE IF NOT EXISTS import_quotes (
+ id uuid PRIMARY KEY, user_id text REFERENCES users(id), book_id uuid REFERENCES books(id) ON DELETE CASCADE,
+ archive_id uuid REFERENCES archives(id) ON DELETE CASCADE, estimated_input_tokens integer NOT NULL,
+ maximum_credits integer NOT NULL CHECK(maximum_credits>0), expires_at timestamptz NOT NULL,
+ used_by uuid UNIQUE REFERENCES jobs(id), created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS job_model_calls (
+ id uuid PRIMARY KEY, job_id uuid REFERENCES jobs(id) ON DELETE CASCADE,
+ phase text NOT NULL CHECK(phase IN ('scan','extract')), chunk_index integer NOT NULL,
+ chunk_hash text NOT NULL, model text NOT NULL, status text NOT NULL,
+ result jsonb, usage jsonb, created_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(job_id,phase,chunk_index,chunk_hash)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS one_active_import ON jobs(archive_id) WHERE status IN ('queued','processing','succeeded');
 CREATE TABLE IF NOT EXISTS recipes (
@@ -68,3 +84,9 @@ ALTER TABLE archives ADD COLUMN IF NOT EXISTS image_key text UNIQUE;
 ALTER TABLE archives ADD COLUMN IF NOT EXISTS image_content_type text;
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS image_key text UNIQUE;
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS image_content_type text;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS quote_id uuid;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reserved_credits integer NOT NULL DEFAULT 1;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS consumed_credits integer NOT NULL DEFAULT 0;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS phase text NOT NULL DEFAULT 'queued';
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS processed_chunks integer NOT NULL DEFAULT 0;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS total_chunks integer NOT NULL DEFAULT 0;
