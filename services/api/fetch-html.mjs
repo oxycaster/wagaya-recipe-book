@@ -182,6 +182,9 @@ export function imageCandidate(html, baseUrl) {
 }
 
 const imageMagic = {
+  'image/avif': (b) =>
+    b.subarray(4, 8).toString() === 'ftyp' &&
+    ['avif', 'avis'].some((brand) => b.subarray(8, 64).includes(Buffer.from(brand))),
   'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
   'image/png': (b) =>
     b
@@ -193,6 +196,10 @@ const imageMagic = {
   'image/gif': (b) => ['GIF87a', 'GIF89a'].includes(b.subarray(0, 6).toString()),
 }
 
+export function isSupportedImage(contentType, buffer) {
+  return Boolean(imageMagic[contentType]?.(buffer))
+}
+
 export async function fetchImage(raw, options = {}) {
   const result = await fetchResource(raw, {
     lookup: options.lookup || dns.lookup,
@@ -201,6 +208,6 @@ export async function fetchImage(raw, options = {}) {
     contentTypes: Object.keys(imageMagic),
   })
   const type = result.contentType.split(';')[0].trim().toLowerCase()
-  requireThat(imageMagic[type]?.(result.buffer), 400, 'INVALID_IMAGE')
+  requireThat(isSupportedImage(type, result.buffer), 400, 'INVALID_IMAGE')
   return { buffer: result.buffer, contentType: type, url: result.url }
 }

@@ -11,7 +11,12 @@ import { domain, hash } from '../domain.mjs'
 import { billingEvent } from '../billing.mjs'
 import { claimJob, finishJob, processOne, cleanupOne } from '../jobs.mjs'
 import { createApp } from '../app.mjs'
-import { imageCandidate, isPublicIP, fetchHtml } from '../fetch-html.mjs'
+import {
+  imageCandidate,
+  isPublicIP,
+  fetchHtml,
+  isSupportedImage,
+} from '../fetch-html.mjs'
 import {
   MAX_MODEL_OUTPUT_TOKENS,
   prepareHtml,
@@ -464,6 +469,16 @@ test('recipe image selection prefers JSON-LD and resolves relative URLs', () => 
     ),
     'https://example.com/fallback.jpg',
   )
+})
+test('recipe image fetch accepts validated AVIF responses', async () => {
+  const avif = Buffer.concat([
+    Buffer.from([0, 0, 0, 24]),
+    Buffer.from('ftypavif'),
+    Buffer.from([0, 0, 0, 0]),
+    Buffer.from('avifmif1'),
+  ])
+  assert.equal(isSupportedImage('image/avif', avif), true)
+  assert.equal(isSupportedImage('image/avif', Buffer.from('not-an-image')), false)
 })
 test('extraction retains source evidence and rejects fabricated ingredients/refusal/incomplete output', async () => {
   const source = prepareHtml(html)
