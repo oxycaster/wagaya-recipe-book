@@ -1,6 +1,6 @@
 # iOS・クラウド版 実装計画
 
-作成: 2026-09-06 / 更新: 2026-09-10 / 状態: P1〜P4のローカル実装・検証済み。内部TestFlight build 3とproduction build 5を配信済み。本番API/worker、HTTPS、DNS、Clerk production domain、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18、非公開prod S3、法務・サポートページの初期受入は完了。EAS production環境の必須8項目も登録済み。Sign in with Apple capabilityと新しいprovisioning profileでproduction build 5の作成・App Store Connect提出・Apple処理・内部テスト配信まで完了。実OpenAI・実課金・本番認証付き機能の受入とproduction TestFlight実機確認は未完了。取り込み権は10回150円、50回600円で開始する。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
+作成: 2026-09-06 / 更新: 2026-09-10 / 状態: P1〜P4のローカル実装・検証済み。内部TestFlight build 3とproduction build 5を配信済み。本番API/worker、HTTPS、DNS、Clerk production domain、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18、非公開prod S3、法務・サポートページの初期受入は完了。EAS production環境の必須8項目も登録済み。production build 5はiPhoneへインストール・起動済み。実機で判明したS3認証情報未注入は修正・本番配備し、コンテナからS3 put/get/deleteを確認済み。App Store Connectの2商品は不足していた審査画像と10回商品の日本配信設定を補い、RevenueCatで両方ともReady to Submit。実OpenAI・Sandbox購入・本番でのカード化完了は未確認。取り込み権は10回150円、50回600円で開始する。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
 

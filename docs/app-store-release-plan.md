@@ -1,6 +1,6 @@
 # App Store公開計画
 
-作成: 2026-09-08 / 更新: 2026-09-10 / 対象: iOS版「わが家のレシピ帖」 / 状態: 計画初稿完成、production TestFlight実機確認待ち
+作成: 2026-09-08 / 更新: 2026-09-10 / 対象: iOS版「わが家のレシピ帖」 / 状態: production TestFlight実機受入中
 
 ## 1. 公開目標
 
@@ -24,12 +24,14 @@
 - 本番API/workerをLightsailへGitHub Actionsから配備し、独自HTTPS、Route 53、Crunchy Bridge固定IP接続、デプロイ後のSSH閉鎖を確認済み。
 - プライバシーポリシー、利用規約、サポートページを本番HTTPSで公開し、アプリ用EAS production環境へURLを登録済み。
 - Apple App IDのSign in with Apple capabilityを有効化し、対応するprovisioning profileでiOS 0.1.0 build 5のproduction build、App Store Connect提出、Apple処理、内部TestFlight配信まで完了済み。
+- build 5をiPhoneへインストール・起動済み。URL保存時のS3 `AccessDenied` はruntime認証情報のデプロイ漏れと特定し、本番修正・コンテナからのS3 put/get/deleteまで確認済み。
+- 10回・50回商品へ審査用スクリーンショットを登録し、10回商品にも日本限定availabilityを設定。App Store Connect APIとRevenueCatで両商品が `Ready to Submit` になったことを確認済み。
 - APIの権限、取り込み権台帳、ジョブ再開、アカウント削除をPGlite統合テストで確認済み。
 
 ### 公開を止めている事項
 
 - build 3はMac上のfixtureへTailnet経由で接続するため一般公開できない。
-- production build 5のiPhone実機インストール・起動、本番Clerkログイン、主要画面は未確認。
+- 修正後の実機URL保存、StoreKitの商品取得、Sandbox購入、Webhook残高付与、OpenAIカード化完了は未確認。
 - prod Clerkの実メール認証、S3実原本保存、認証付き公開API、実OpenAIは未受入。Crunchy BridgeはHobby plan・HAなし・log drain未設定で、別クラスタへのバックアップ復元も未検証。
 - App Store ConnectのConsumable商品は下書き登録済みで、RevenueCatにも同じproduct IDをConsumableとして登録済み。RevenueCatのApp Store Connect APIとIn-App Purchase Keyは有効。両商品は審査用情報が未完了のため `Missing Metadata` で、Sandbox購入、返金、通知再送は未検証。
 - App Privacy、年齢区分、コンテンツ権利、ストア説明・スクリーンショットが未確定。価格と販売地域は確定済み。
