@@ -90,13 +90,14 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 - URL保存障害: 本番ログにS3 `AccessDenied` を確認。CDKのruntime secretにはS3専用アクセスキーがあり単独のput/head/deleteも成功したが、GitHub Actionsが生成するAPI/worker envの許可リストから `AWS_ACCESS_KEY_ID` と `AWS_SECRET_ACCESS_KEY` が漏れていた。両envへ追加し、Caddy一段配下としてExpress `trust proxy=1` も設定。API 23/23、mobile型検査、workflow YAML、`git diff --check`に成功。PR #17をmainへマージし、Actions run `34432294518` が全工程成功。配備後のAPI health、コンテナ内S3 put/get/delete、22番閉鎖を確認した。修正後の実機URL保存は未確認。
 - 商品未取得障害: App Store Connect APIで両商品が `MISSING_METADATA`、審査用スクリーンショットが未登録と確認。設定タブの実画面をSimulatorで1170×2532 PNGとして確認して両商品へ登録した。さらに10回商品だけavailability自体が未作成だったため、50回商品と同じく新規地域自動追加なし・日本1地域で作成した。APIで両商品が `READY_TO_SUBMIT`、RevenueCat画面でも両方 `Ready to Submit` を確認。価格は10回150円・50回600円の既存設定を維持。その後も実機取得が0件のためビジネス画面を確認し、有料アプリ契約が未締結であることを特定した。
 - 2026-09-10 Paid Apps Agreement・支払情報: ユーザー承認後にPaid Apps Agreementへ同意した。十六銀行の指定口座を登録し、銀行口座は `処理中`（Apple表示では反映まで最大24時間）。米国税務調査票を経て、`U.S. Form W-8BEN` と `U.S. Certificate of Foreign Status of Beneficial Owner` をユーザーの送信承認後に提出し、両方の送信日が2026-09-10、ステータスが `有効` であることを確認した。税務番号、口座番号などの秘密情報は文書・リポジトリへ保存していない。有料アプリ契約は `処理中`。反映後にStoreKit商品取得を実機で再検証する。
+- 2026-09-10 支払情報反映: App Store Connectを再読込し、有料アプリ契約、十六銀行口座、米国税務フォーム2件、DSAコンプライアンスがすべて `有効` であることを確認した。App Store Connect側の支払・契約ブロックは解消。次はproduction build 5で商品2件を再取得し、Sandbox購入からカード化までを実機受入する。
 
 ## 次のエージェントが行うこと
 
 1. `git status`、`docs/app-store-release-plan.md`、本書を読む。主要実装は `codex/ios-cloud-testflight` の `53708da` にコミット済み。文書の更新履歴は後続commitを確認する。`.codex/environments/environment.toml` は本実装に含めていない。
 2. Clerk production domainは受入済み。API/workerホスティング先のsecret managerへ新しいproduction publishable/secret keyを保存し、Native API、`email` session claim、authorized partyを本番buildで再確認する。development instanceの登録・再送・ログイン・再起動はSimulatorで確認済み。物理iPhoneと、隔離したテストユーザーによる退会後のClerkユーザー消去を確認する。
 3. dev Docker PostgreSQL、prod Crunchy Bridge PostgreSQL、dev/prod CDK stack、親DNS、本番API/workerの自動デプロイは受入済み。production `application settings` secretにはDB/Clerk/OpenAIとRevenueCatの商品対応表を含むruntime設定を入力済み。RevenueCat WebhookとApp Store Connect API連携も保存済み。次は隔離した本番テストユーザーでClerk認証付きAPI、S3原本保存、OpenAI抽出を受入する。Production Checkで残るproduction instance/HA/log drain、別クラスタへのバックアップ復元はG2完了前に判断・検証する。外部環境ではA/B/Cユーザーのアクセス境界、実HTMLの保存と抽出、20〜50件のusage/P95原価、Sandbox購入の重複/返金/復元、アカウント削除のS3/Auth消去を確認する。App Store Connectの審査用メタデータを補完し、RevenueCatの `Missing Metadata` を解消する。
-4. Paid Apps Agreementと税務フォームは完了。銀行口座と有料アプリ契約の `処理中` が解消した後、iPhoneのproduction build 5で商品2件と日本円価格の表示を確認する。Sandboxで10回商品を購入し、RevenueCat webhookによる残高+10、同じHTMLのカード化、画像・材料・手順表示、権利1回消費まで確認する。失敗時は秘密やHTML本文を残さず、API/worker/RevenueCatのイベント状態を照合する。
+4. Paid Apps Agreement、銀行口座、税務フォーム、DSAコンプライアンスはすべて `有効`。iPhoneのproduction build 5で商品2件と日本円価格の表示を再確認する。Sandboxで10回商品を購入し、RevenueCat webhookによる残高+10、同じHTMLのカード化、画像・材料・手順表示、権利1回消費まで確認する。失敗時は秘密やHTML本文を残さず、API/worker/RevenueCatのイベント状態を照合する。
 5. 現行カード/献立の一括移行、Safari Share Extensionは本実装の対象外。現在のiOSはURL貼り付け・保存HTMLファイル選択で取り込む。追加する場合は計画を更新する。
 
 ## 主なファイル
