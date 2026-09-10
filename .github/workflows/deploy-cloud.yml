@@ -87,6 +87,7 @@ jobs:
             with_entries(select(.key | IN(
               "APP_ENV", "DATABASE_URL", "DATABASE_SSL_CA",
               "CLERK_ISSUER_URL", "CLERK_AUTHORIZED_PARTIES",
+              "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
               "AWS_REGION", "S3_BUCKET", "S3_ENDPOINT",
               "REVENUECAT_WEBHOOK_SECRET", "REVENUECAT_APP_ID",
               "REVENUECAT_ENVIRONMENT", "REVENUECAT_PRODUCTS"
@@ -97,6 +98,7 @@ jobs:
             with_entries(select(.key | IN(
               "APP_ENV", "DATABASE_URL", "DATABASE_SSL_CA",
               "CLERK_ISSUER_URL", "CLERK_AUTHORIZED_PARTIES",
+              "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
               "AWS_REGION", "S3_BUCKET", "S3_ENDPOINT",
               "CLERK_SECRET_KEY", "OPENAI_API_KEY", "OPENAI_MODEL"
             ))) |

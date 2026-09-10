@@ -31,6 +31,9 @@ export function createApp({
   const app = express(),
     service = domain(db)
   app.disable('x-powered-by')
+  // Production traffic reaches Express through exactly one local Caddy proxy.
+  // This also lets express-rate-limit use the original client address safely.
+  app.set('trust proxy', 1)
   app.use((_req, res, next) => {
     res.set({
       'Cache-Control': 'no-store',
