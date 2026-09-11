@@ -3,8 +3,10 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
+  DynamicColorIOS,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -20,6 +22,7 @@ import { useAuth, useSignIn, useSignUp, useUser } from '@clerk/expo'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { Image } from 'expo-image'
+import { SymbolView, type SFSymbol } from 'expo-symbols'
 import * as Crypto from 'expo-crypto'
 import * as DocumentPicker from 'expo-document-picker'
 import { File, Paths } from 'expo-file-system'
@@ -39,7 +42,7 @@ import type {
   Archive,
   Book,
   Card,
-  Family,
+  SharingState,
   Plan,
   Recipe,
   Wallet,
@@ -47,7 +50,22 @@ import type {
 } from '../src/types'
 import { scaleAmount } from '../../../src/quantities'
 
-const green = '#365b45'
+const adaptive = (light: string, dark: string) =>
+  Platform.OS === 'ios' ? DynamicColorIOS({ light, dark }) : light
+const colors = {
+  accent: adaptive('#365B45', '#8FC9A5'),
+  background: adaptive('#F7F6F2', '#111411'),
+  surface: adaptive('#FFFFFF', '#1C211D'),
+  surfaceSecondary: adaptive('#EEF2EC', '#273029'),
+  text: adaptive('#1D2B22', '#F1F5F0'),
+  secondaryText: adaptive('#667067', '#ADB8AF'),
+  separator: adaptive('#DDE2DC', '#384139'),
+  input: adaptive('#FFFFFF', '#222923'),
+  messageBackground: adaptive('#F5EBD4', '#3B3020'),
+  messageText: adaptive('#694D25', '#F1D39C'),
+  destructive: adaptive('#C92D39', '#FF6961'),
+}
+const green = colors.accent
 const errorText = (e: unknown) =>
   e instanceof Error
     ? e.message
@@ -61,11 +79,13 @@ function Button({
   onPress,
   disabled = false,
   secondary = false,
+  destructive = false,
 }: {
   label: string
   onPress: () => void
   disabled?: boolean
   secondary?: boolean
+  destructive?: boolean
 }) {
   return (
     <Pressable
@@ -79,10 +99,64 @@ function Button({
         (disabled || pressed) && { opacity: 0.5 },
       ]}
     >
-      <Text style={[styles.buttonText, secondary && { color: green }]}>
+      <Text
+        style={[
+          styles.buttonText,
+          secondary && { color: green },
+          destructive && { color: colors.destructive },
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
+  )
+}
+
+function SearchField({
+  value,
+  onChangeText,
+}: {
+  value: string
+  onChangeText: (value: string) => void
+}) {
+  return (
+    <View style={styles.searchField}>
+      <SymbolView
+        name="magnifyingglass"
+        size={18}
+        tintColor={colors.secondaryText}
+        style={styles.searchIcon}
+      />
+      <TextInput
+        accessibilityLabel="レシピを検索"
+        autoCorrect={false}
+        clearButtonMode="never"
+        onChangeText={onChangeText}
+        placeholder="料理名やタグで検索"
+        placeholderTextColor={colors.secondaryText}
+        returnKeyType="search"
+        style={styles.searchInput}
+        value={value}
+      />
+      {!!value && (
+        <Pressable
+          accessibilityLabel="検索語を消去"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => onChangeText('')}
+          style={({ pressed }) => [
+            styles.clearSearch,
+            pressed && { opacity: 0.5 },
+          ]}
+        >
+          <SymbolView
+            name="xmark.circle.fill"
+            size={18}
+            tintColor={colors.secondaryText}
+          />
+        </Pressable>
+      )}
+    </View>
   )
 }
 function Field({
@@ -204,7 +278,7 @@ function RecipeArtwork({
 function Frame({ children }: { children: React.ReactNode }) {
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar style="dark" />
+      <StatusBar style="auto" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -212,6 +286,177 @@ function Frame({ children }: { children: React.ReactNode }) {
         {children}
       </KeyboardAvoidingView>
     </SafeAreaView>
+  )
+}
+
+type TabName = '献立' | 'レシピ' | '取り込み' | '共有' | '設定'
+const tabs: Array<{ label: TabName; symbol: SFSymbol }> = [
+  { label: '献立', symbol: 'calendar' },
+  { label: 'レシピ', symbol: 'book.closed.fill' },
+  { label: '取り込み', symbol: 'square.and.arrow.down' },
+  { label: '共有', symbol: 'person.2.fill' },
+  { label: '設定', symbol: 'gearshape.fill' },
+]
+
+function TabBar({
+  selected,
+  onSelect,
+}: {
+  selected: TabName
+  onSelect: (tab: TabName) => void
+}) {
+  return (
+    <View accessibilityRole="tablist" style={styles.tabs}>
+      {tabs.map(({ label, symbol }) => {
+        const active = selected === label
+        return (
+          <Pressable
+            accessibilityLabel={label}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            key={label}
+            onPress={() => onSelect(label)}
+            style={({ pressed }) => [
+              styles.tab,
+              pressed && { opacity: 0.55 },
+            ]}
+          >
+            <SymbolView
+              name={symbol}
+              size={21}
+              tintColor={active ? green : colors.secondaryText}
+              type={active ? 'hierarchical' : 'monochrome'}
+              weight={active ? 'semibold' : 'regular'}
+            />
+            <Text
+              maxFontSizeMultiplier={1.25}
+              numberOfLines={1}
+              style={[styles.tabText, active && styles.selectedTabText]}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
+
+function BookSelector({
+  books,
+  selectedId,
+  disabled,
+  onSelect,
+}: {
+  books: Book[]
+  selectedId: string
+  disabled: boolean
+  onSelect: (bookId: string) => void
+}) {
+  const [visible, setVisible] = useState(false)
+  const selected = books.find((book) => book.id === selectedId)
+  if (!selected)
+    return (
+      <Text maxFontSizeMultiplier={1.4} style={styles.eyebrow}>
+        わが家のレシピ帖
+      </Text>
+    )
+  if (books.length === 1)
+    return (
+      <Text
+        maxFontSizeMultiplier={1.4}
+        numberOfLines={1}
+        style={styles.bookContextText}
+      >
+        {selected.name}
+      </Text>
+    )
+  return (
+    <>
+      <Pressable
+        accessibilityHint="使用するレシピ帖を選びます"
+        accessibilityLabel={`現在のレシピ帖、${selected.name}`}
+        accessibilityRole="button"
+        disabled={disabled}
+        hitSlop={8}
+        onPress={() => setVisible(true)}
+        style={({ pressed }) => [
+          styles.bookSelector,
+          pressed && { opacity: 0.55 },
+        ]}
+      >
+        <Text
+          maxFontSizeMultiplier={1.4}
+          numberOfLines={1}
+          style={styles.bookContextText}
+        >
+          {selected.name}
+        </Text>
+        <SymbolView
+          name="chevron.down"
+          size={12}
+          tintColor={colors.secondaryText}
+          weight="semibold"
+        />
+      </Pressable>
+      <Modal
+        animationType="slide"
+        onRequestClose={() => setVisible(false)}
+        presentationStyle="pageSheet"
+        visible={visible}
+      >
+        <SafeAreaView style={styles.selectorSheet}>
+          <View style={styles.selectorSheetHeader}>
+            <Text accessibilityRole="header" style={styles.heading}>
+              レシピ帖を選ぶ
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={() => setVisible(false)}
+              style={({ pressed }) => [
+                styles.sheetClose,
+                pressed && { opacity: 0.55 },
+              ]}
+            >
+              <Text style={styles.sheetCloseText}>閉じる</Text>
+            </Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.selectorList}>
+            {books.map((book) => {
+              const active = book.id === selectedId
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  key={book.id}
+                  onPress={() => {
+                    onSelect(book.id)
+                    setVisible(false)
+                  }}
+                  style={({ pressed }) => [
+                    styles.selectorRow,
+                    pressed && { opacity: 0.55 },
+                  ]}
+                >
+                  <Text numberOfLines={2} style={styles.selectorRowText}>
+                    {book.name}
+                  </Text>
+                  {active && (
+                    <SymbolView
+                      name="checkmark"
+                      size={17}
+                      tintColor={green}
+                      weight="semibold"
+                    />
+                  )}
+                </Pressable>
+              )
+            })}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+    </>
   )
 }
 
@@ -297,9 +542,13 @@ function Login() {
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.eyebrow}>FAMILY RECIPE BOOK</Text>
-        <Text style={styles.hero}>おいしい記憶を、{'\n'}家族の一冊に。</Text>
-        <Note>気になるレシピを保存して、家族で今日の献立を考えましょう。</Note>
+        <Text maxFontSizeMultiplier={1.4} style={styles.eyebrow}>
+          FAMILY RECIPE BOOK
+        </Text>
+        <Text maxFontSizeMultiplier={1.4} style={styles.hero}>
+          おいしい記憶を、{'\n'}みんなの一冊に。
+        </Text>
+        <Note>気になるレシピを保存して、一緒に使う人と献立を考えましょう。</Note>
         <View style={styles.panel}>
           <Text style={styles.heading}>メールでログイン</Text>
           <Field
@@ -430,7 +679,7 @@ function Home({
 }) {
   const [books, setBooks] = useState<Book[]>([]),
     [bookId, setBookId] = useState(''),
-    [tab, setTab] = useState('レシピ'),
+    [tab, setTab] = useState<TabName>('献立'),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [newName, setNewName] = useState(''),
@@ -461,17 +710,23 @@ function Home({
     setBookId((previous) =>
       list.some((b) => b.id === previous) ? previous : list[0]?.id || '',
     )
+    setMessage('')
   }, [])
   useEffect(() => {
     void refresh().catch((e) => setMessage(errorText(e)))
   }, [refresh])
   useEffect(() => {
-    if (initialToken) setInviteToken(initialToken)
+    if (initialToken) {
+      setInviteToken(initialToken)
+      setTab('共有')
+    }
     const listener = Linking.addEventListener('url', ({ url }) => {
       try {
         const u = new URL(url)
-        if (u.protocol === 'wagayarecipe:' && u.hostname === 'invite')
+        if (u.protocol === 'wagayarecipe:' && u.hostname === 'invite') {
           setInviteToken(u.searchParams.get('token') || '')
+          setTab('共有')
+        }
       } catch {}
     })
     return () => listener.remove()
@@ -487,51 +742,22 @@ function Home({
   return (
     <Frame>
       <View style={styles.header}>
-        <Text style={styles.eyebrow}>わが家のレシピ帖</Text>
-        <Text style={styles.title}>{book?.name || '新しい一冊を'}</Text>
-      </View>
-      <ScrollView
-        horizontal
-        style={{ flexGrow: 0 }}
-        contentContainerStyle={styles.bookStrip}
-      >
-        {books.map((b) => (
-          <Button
-            key={b.id}
-            secondary={bookId !== b.id}
-            label={b.name}
-            disabled={busy}
-            onPress={() => {
-              setBookId(b.id)
-              setMessage('')
-            }}
-          />
-        ))}
-      </ScrollView>
-      <View style={styles.tabs}>
-        {['レシピ', '取り込み', '献立', '家族', '設定'].map((t) => (
-          <Pressable
-            key={t}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: tab === t }}
-            onPress={() => {
-              if (!busy) {
-                setTab(t)
-                setMessage('')
-              }
-            }}
-            style={[styles.tab, tab === t && styles.selectedTab]}
-          >
-            <Text
-              style={[
-                styles.tabText,
-                tab === t && { color: green, fontWeight: '700' },
-              ]}
-            >
-              {t}
-            </Text>
-          </Pressable>
-        ))}
+        <BookSelector
+          books={books}
+          selectedId={bookId}
+          disabled={busy}
+          onSelect={(nextBookId) => {
+            setBookId(nextBookId)
+            setMessage('')
+          }}
+        />
+        <Text
+          accessibilityRole="header"
+          maxFontSizeMultiplier={1.6}
+          style={styles.title}
+        >
+          {tab}
+        </Text>
       </View>
       {!!message && (
         <Text accessibilityLiveRegion="polite" style={styles.message}>
@@ -549,7 +775,7 @@ function Home({
           />
         }
       >
-        {(!book || tab === '設定') && (
+        {(tab === '設定' || (!book && tab === '献立')) && (
           <View style={styles.panel}>
             <Text style={styles.heading}>レシピ帖を作る</Text>
             <Field
@@ -572,9 +798,9 @@ function Home({
             />
           </View>
         )}
-        {(!book || tab === '家族' || !!inviteToken) && (
+        {tab === '共有' && (
           <View style={styles.panel}>
-            <Text style={styles.heading}>家族からの招待</Text>
+            <Text style={styles.heading}>レシピ帖への招待</Text>
             <Field
               label="招待リンクまたはコード"
               value={inviteToken}
@@ -596,6 +822,23 @@ function Home({
                   setTab('レシピ')
                 })
               }
+            />
+          </View>
+        )}
+        {!book && (tab === 'レシピ' || tab === '取り込み') && (
+          <View style={styles.panel}>
+            <Text style={styles.heading}>レシピ帖が必要です</Text>
+            <Note>
+              {tab === 'レシピ'
+                ? 'レシピを保存する一冊を先に作成してください。'
+                : '取り込んだレシピを保存する一冊を先に作成してください。'}
+            </Note>
+            <Button
+              label="レシピ帖を作る"
+              onPress={() => {
+                setTab('献立')
+                setMessage('')
+              }}
             />
           </View>
         )}
@@ -625,6 +868,15 @@ function Home({
           />
         )}
       </ScrollView>
+      <TabBar
+        selected={tab}
+        onSelect={(next) => {
+          if (!busy) {
+            setTab(next)
+            setMessage('')
+          }
+        }}
+      />
     </Frame>
   )
 }
@@ -643,7 +895,7 @@ function BookContent({
   ...actions
 }: {
   book: Book
-  tab: string
+  tab: TabName
   userId: string
   wallet: Wallet | null
 } & Actions) {
@@ -651,8 +903,8 @@ function BookContent({
   if (tab === '取り込み')
     return <Imports book={book} wallet={wallet} {...actions} />
   if (tab === '献立') return <MealPlan book={book} {...actions} />
-  if (tab === '家族')
-    return <FamilyView book={book} userId={userId} {...actions} />
+  if (tab === '共有')
+    return <SharingView book={book} userId={userId} {...actions} />
   if (tab === '設定') return <BookSettings book={book} {...actions} />
   return null
 }
@@ -705,6 +957,11 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
       setLoading(false)
     })
   }, [load])
+  const filtered = recipes.filter((r) =>
+    (r.card.title + r.card.tags.join(' '))
+      .toLocaleLowerCase('ja-JP')
+      .includes(search.trim().toLocaleLowerCase('ja-JP')),
+  )
   if (selected)
     return (
       <RecipeDetail
@@ -729,7 +986,7 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
     )
   return (
     <>
-      <Field label="レシピを探す" value={search} onChangeText={setSearch} />
+      <SearchField value={search} onChangeText={setSearch} />
       <Button
         label="最新のレシピを読む"
         secondary
@@ -742,15 +999,17 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
         <View style={styles.panel}>
           <Text style={styles.heading}>最初のお気に入りを。</Text>
           <Note>
-            「取り込み」からページを保存すると、家族で読めるレシピカードを作れます。
+            「取り込み」からページを保存すると、参加者と読めるレシピカードを作れます。
           </Note>
         </View>
+      ) : !filtered.length ? (
+        <View style={styles.panel}>
+          <Text style={styles.heading}>該当するレシピがありません</Text>
+          <Note>検索語を変えるか、消去してすべてのレシピを表示してください。</Note>
+          <Button secondary label="検索を消去" onPress={() => setSearch('')} />
+        </View>
       ) : (
-        recipes
-          .filter((r) =>
-            (r.card.title + r.card.tags.join(' ')).includes(search),
-          )
-          .map((r) => (
+        filtered.map((r) => (
             <Pressable
               accessibilityRole="button"
               key={r.id}
@@ -963,7 +1222,7 @@ function RecipeDetail({
       </View>
       {edit ? (
         <Field
-          label="家族のメモ"
+          label="共有メモ"
           value={memo}
           onChangeText={setMemo}
           multiline
@@ -971,7 +1230,7 @@ function RecipeDetail({
       ) : (
         !!memo && (
           <View style={styles.panel}>
-            <Text style={styles.heading}>家族のメモ</Text>
+            <Text style={styles.heading}>共有メモ</Text>
             <Text style={styles.body}>{memo}</Text>
           </View>
         )
@@ -1110,7 +1369,7 @@ function Imports({
     <>
       <Text style={styles.heading}>お気に入りを保存</Text>
       <Note>
-        HTML原本は自分だけに保存されます。作成したカードはこのレシピ帖の家族に共有されます。
+        HTML原本は自分だけに保存されます。作成したカードはこのレシピ帖の参加者に共有されます。
       </Note>
       {book.role === 'viewer' ? (
         <Note>
@@ -1277,7 +1536,6 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
   const edit = book.role !== 'viewer' && day === loadedDay
   return (
     <>
-      <Text style={styles.heading}>今日も、いただきます。</Text>
       <Field
         label="献立の日付（YYYY-MM-DD）"
         value={day}
@@ -1410,7 +1668,7 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
   )
 }
 
-function FamilyView({
+function SharingView({
   book,
   userId,
   busy,
@@ -1418,12 +1676,15 @@ function FamilyView({
   refresh,
   notify,
 }: { book: Book; userId: string } & Actions) {
-  const [family, setFamily] = useState<Family>({ members: [], invites: [] }),
+  const [sharing, setSharing] = useState<SharingState>({
+    members: [],
+    invites: [],
+  }),
     [email, setEmail] = useState(''),
     [role, setRole] = useState<'editor' | 'viewer'>('viewer')
   const load = useCallback(async () => {
     if (book.role === 'owner')
-      setFamily(await api<Family>(`/books/${book.id}/family`))
+      setSharing(await api<SharingState>(`/books/${book.id}/family`))
   }, [book.id, book.role])
   useEffect(() => {
     void load().catch((e) => notify(errorText(e)))
@@ -1437,15 +1698,15 @@ function FamilyView({
     return (
       <Note>
         あなたは{book.role === 'editor' ? '編集者' : '閲覧者'}
-        です。家族の招待や権限変更はレシピ帖の所有者が行えます。
+        です。参加者の招待や権限変更はレシピ帖の所有者が行えます。
       </Note>
     )
   return (
     <>
       <View style={styles.panel}>
-        <Text style={styles.heading}>家族を招待する</Text>
+        <Text style={styles.heading}>参加者を招待する</Text>
         <Field
-          label="招待する家族のメールアドレス"
+          label="招待する人のメールアドレス"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -1484,7 +1745,7 @@ function FamilyView({
           }
         />
       </View>
-      {family.members.map((m) => (
+      {sharing.members.map((m) => (
         <View style={styles.panel} key={m.user_id}>
           <Text style={styles.body}>{m.email}</Text>
           <Text style={styles.badge}>
@@ -1537,7 +1798,7 @@ function FamilyView({
                 disabled={busy}
                 onPress={() =>
                   Alert.alert(
-                    '家族を外す',
+                    '参加者を外しますか？',
                     `${m.email} はこのレシピ帖を読めなくなります。`,
                     [
                       { text: 'キャンセル', style: 'cancel' },
@@ -1563,7 +1824,7 @@ function FamilyView({
           )}
         </View>
       ))}
-      {family.invites
+      {sharing.invites
         .filter((i) => !i.accepted_by && !i.revoked)
         .map((i) => (
           <View style={styles.panel} key={i.id}>
@@ -1617,7 +1878,7 @@ function Settings({
         </Text>
         <Note>
           処理中の予約: {wallet?.reserved ?? 0}
-          回分。購入権に有効期限はありません。家族に共有するカードも、取り込む本人の権利を使います。
+          回分。購入権に有効期限はありません。参加者と共有するカードも、取り込む本人の権利を使います。
         </Note>
         <Button
           secondary
@@ -1703,12 +1964,13 @@ function Settings({
         />
         <Button
           secondary
+          destructive
           label="アカウントを削除"
           disabled={busy}
           onPress={() =>
             Alert.alert(
               'アカウントを削除しますか？',
-              'HTML原本と自分だけのレシピ帖は削除され、未使用の取り込み権も利用できなくなります。家族と共有する帖は先に所有者を移してください。共有済みカードは家族に残ります。削除は取り消せません。',
+              'HTML原本と自分だけのレシピ帖は削除され、未使用の取り込み権も利用できなくなります。他の人と共有する帖は先に所有者を移してください。共有済みカードは参加者に残ります。削除は取り消せません。',
               [
                 { text: 'キャンセル', style: 'cancel' },
                 {
@@ -1730,32 +1992,81 @@ function Settings({
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#f6f3eb' },
-  content: { padding: 22, gap: 16, paddingBottom: 48 },
+  safe: { flex: 1, backgroundColor: colors.background },
+  content: { padding: 20, gap: 16, paddingBottom: 32 },
   header: { paddingHorizontal: 22, paddingTop: 12, paddingBottom: 14 },
   eyebrow: {
     fontSize: 11,
     letterSpacing: 2,
-    color: '#748071',
+    color: colors.secondaryText,
     fontWeight: '700',
   },
-  title: { fontSize: 25, fontWeight: '700', color: '#263c2e', marginTop: 7 },
-  hero: { fontSize: 31, lineHeight: 44, fontWeight: '700', color: '#263c2e' },
+  bookSelector: {
+    minHeight: 28,
+    maxWidth: '85%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+  },
+  bookContextText: {
+    flexShrink: 1,
+    fontSize: 13,
+    color: colors.secondaryText,
+    fontWeight: '700',
+  },
+  selectorSheet: { flex: 1, backgroundColor: colors.background },
+  selectorSheetHeader: {
+    minHeight: 58,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.separator,
+  },
+  sheetClose: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  sheetCloseText: { fontSize: 17, fontWeight: '600', color: green },
+  selectorList: { paddingVertical: 8 },
+  selectorRow: {
+    minHeight: 52,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.separator,
+  },
+  selectorRowText: {
+    flex: 1,
+    fontSize: 17,
+    lineHeight: 22,
+    color: colors.text,
+  },
+  title: { fontSize: 28, fontWeight: '700', color: colors.text, marginTop: 5 },
+  hero: { fontSize: 31, lineHeight: 40, fontWeight: '700', color: colors.text },
   heading: {
     fontSize: 19,
     fontWeight: '700',
-    color: '#263c2e',
+    color: colors.text,
     marginBottom: 4,
   },
-  body: { fontSize: 15, color: '#354639', lineHeight: 24 },
-  note: { fontSize: 13, color: '#6c756b', lineHeight: 22 },
+  body: { fontSize: 17, color: colors.text, lineHeight: 25 },
+  note: { fontSize: 15, color: colors.secondaryText, lineHeight: 22 },
   panel: {
-    backgroundColor: '#fffdf7',
-    borderRadius: 20,
-    padding: 19,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 18,
     gap: 12,
     borderWidth: 1,
-    borderColor: '#e8e5da',
+    borderColor: colors.separator,
   },
   row: {
     flexDirection: 'row',
@@ -1765,16 +2076,16 @@ const styles = StyleSheet.create({
   },
   wrap: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   field: { gap: 6 },
-  label: { fontSize: 13, fontWeight: '600', color: '#56624f' },
+  label: { fontSize: 15, fontWeight: '600', color: colors.secondaryText },
   input: {
-    backgroundColor: '#fff',
-    borderColor: '#d5dacc',
+    backgroundColor: colors.input,
+    borderColor: colors.separator,
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 13,
     paddingVertical: 12,
     fontSize: 16,
-    color: '#263c2e',
+    color: colors.text,
     minHeight: 46,
   },
   button: {
@@ -1786,34 +2097,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondary: { backgroundColor: '#e9eee3' },
-  buttonText: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  secondary: { backgroundColor: colors.surfaceSecondary },
+  buttonText: { fontSize: 17, fontWeight: '600', color: '#fff' },
   tabs: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderColor: '#dedfd4',
-    marginTop: 12,
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.separator,
+    paddingHorizontal: 4,
+    paddingTop: 6,
   },
-  tab: { flex: 1, alignItems: 'center', paddingVertical: 15 },
-  selectedTab: { borderBottomWidth: 3, borderColor: green },
-  tabText: { fontSize: 13, color: '#7a8074' },
-  bookStrip: { paddingHorizontal: 22, gap: 8 },
+  tab: {
+    flex: 1,
+    minHeight: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  tabText: { fontSize: 11, fontWeight: '500', color: colors.secondaryText },
+  selectedTabText: { color: green, fontWeight: '700' },
   message: {
     marginHorizontal: 22,
     marginTop: 12,
     padding: 12,
-    backgroundColor: '#f0e6cf',
+    backgroundColor: colors.messageBackground,
     borderRadius: 10,
-    color: '#684d29',
+    color: colors.messageText,
     fontSize: 14,
     lineHeight: 21,
   },
   recipe: {
-    backgroundColor: '#fffdf7',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#e8e5da',
+    borderColor: colors.separator,
   },
   recipeCopy: { padding: 18, gap: 8 },
   artwork: { overflow: 'hidden', position: 'relative' },
@@ -1875,13 +2193,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  recipeTags: { fontSize: 12, color: '#748071', lineHeight: 20 },
+  recipeTags: { fontSize: 14, color: colors.secondaryText, lineHeight: 20 },
   mealHeading: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   recipeTitle: {
     fontSize: 22,
     fontWeight: '700',
     lineHeight: 31,
-    color: '#304b38',
+    color: colors.text,
   },
   badge: { fontSize: 12, color: green, fontWeight: '600' },
   ingredient: {
@@ -1889,8 +2207,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 16,
     borderBottomWidth: 1,
-    borderColor: '#eceee4',
+    borderColor: colors.separator,
     paddingVertical: 9,
   },
-  step: { fontSize: 16, color: '#354639', lineHeight: 28, marginBottom: 12 },
+  step: { fontSize: 17, color: colors.text, lineHeight: 28, marginBottom: 12 },
+  searchField: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: colors.surfaceSecondary,
+    paddingLeft: 13,
+  },
+  searchIcon: { width: 20, height: 20 },
+  searchInput: {
+    flex: 1,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    fontSize: 17,
+    color: colors.text,
+  },
+  clearSearch: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 })
