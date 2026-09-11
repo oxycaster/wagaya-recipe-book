@@ -21,10 +21,10 @@ const messages: Record<string, string> = {
   INSUFFICIENT_CREDITS: '取り込み権が不足しています。「設定」で購入できます。',
   BOOK_ACCESS_DENIED: 'このレシピ帖の操作権限がありません。',
   EDIT_CONFLICT:
-    '家族が先に更新しました。最新の内容を読み直してから編集してください。',
+    '他の参加者が先に更新しました。最新の内容を読み直してから編集してください。',
   INVALID_INPUT: '入力内容を確認してください。',
   TRANSFER_OWNERSHIP_FIRST:
-    '共有中のレシピ帖があります。家族画面で所有者を移してから削除してください。',
+    '共有中のレシピ帖があります。「共有」で所有者を移してから削除してください。',
   INVITE_UNAVAILABLE:
     '招待が無効・期限切れ、または招待先のメールアドレスと異なります。',
   SIGN_IN_REQUIRED: 'もう一度ログインしてください。',

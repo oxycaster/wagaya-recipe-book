@@ -59,7 +59,7 @@ export type Wallet = {
   available: number
   ledger: { delta: number; reason: string; created_at: string }[]
 }
-export type Family = {
+export type SharingState = {
   members: { user_id: string; email: string; role: Book['role'] }[]
   invites: {
     id: string

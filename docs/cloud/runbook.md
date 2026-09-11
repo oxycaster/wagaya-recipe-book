@@ -99,7 +99,7 @@ prodでは、ホスティング先のsecret managerから `APP_ENV=prod`、`DATA
 | 本人・削除 | GET /me、DELETE /me `{confirm:"DELETE"}` |
 | レシピ帖 | GET/POST /books、PATCH /books/:book `{name}` |
 | 招待 | POST /books/:book/invites、POST /invites/accept、DELETE /books/:book/invites/:id |
-| 家族 | GET /books/:book/family、PATCH /books/:book/members/:user `{role:null/editor/viewer}`、POST /books/:book/owner |
+| 共有 | GET /books/:book/family、PATCH /books/:book/members/:user `{role:null/editor/viewer}`、POST /books/:book/owner |
 | 原本 | GET/POST /books/:book/archives、GET /archives/:id/html |
 | カード化 | POST /books/:book/imports `{archiveId,requestKey,consent:true}` |
 | カード | GET /books/:book/recipes、PUT /books/:book/recipes/:id `{version,card,memo}` |
@@ -115,7 +115,7 @@ prodでは、ホスティング先のsecret managerから `APP_ENV=prod`、`DATA
 - ジョブは3分のリース。強制終了後は別workerが取得でき、lease tokenが異なる古いworkerの保存を拒否。最大3回実行、次の取得で失敗確定し予約を戻す。APIエラーはユーザーが原本確認後に再試行できる。外部LLMへの呼び出し自体はクラッシュ境界で再実行される可能性がある（運営者コストはat-least-once、利用者権利は一度だけ）。
 - 監視項目: 最古queued時刻、期限切れprocessing、deletion_pending件数/経過、Webhook非2xx、負残高、LLMエラー率/usage、DB/S3容量。メール/HTML/トークンをログに出さない。
 - DB backup/PITR、復元演習、秘密ローテーション、S3とDBの孤立原本棚卸しを公開前に設定。S3書き込み後DB commit前のクラッシュでは孤立原本が残りうる。アカウント削除時のprefix削除で回収されるが、通常の定期棚卸しは別途必要。
-- アカウント削除は即時アクセス停止、workerがS3 prefix・Authを削除、DB原本を削除。失敗はpendingに残し再試行。共有カードは家族に残す。課金監査用のUUID/取引/台帳は匿名化メールとともに保持し、正式な保持期間をポリシーで決める。
+- アカウント削除は即時アクセス停止、workerがS3 prefix・Authを削除、DB原本を削除。失敗はpendingに残し再試行。共有カードは他の参加者に残す。課金監査用のUUID/取引/台帳は匿名化メールとともに保持し、正式な保持期間をポリシーで決める。
 
 ## 既存データの移行
 

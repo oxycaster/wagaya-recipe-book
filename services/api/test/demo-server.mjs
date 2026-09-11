@@ -24,7 +24,7 @@ await svc.identity(id, email)
 const book = await svc.createBook(id, 'わが家の一冊')
 const billing = {
   appId: 'local-demo',
-  environment: 'SANDBOX',
+  environments: ['SANDBOX'],
   products: { recipe_import_10: 10 },
 }
 await billingEvent(

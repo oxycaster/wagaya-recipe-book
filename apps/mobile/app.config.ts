@@ -35,7 +35,7 @@ export default {
     version: '0.1.0',
     icon: './assets/icon.png',
     orientation: 'portrait',
-    userInterfaceStyle: 'light',
+    userInterfaceStyle: 'automatic',
     ios: {
       supportsTablet: true,
       bundleIdentifier:

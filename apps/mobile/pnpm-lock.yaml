@@ -47,6 +47,9 @@ importers:
       expo-status-bar:
         specifier: ~55.0.4
         version: 55.0.6(react-native@0.83.10(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.2.0)
+      expo-symbols:
+        specifier: ~55.0.9
+        version: 55.0.9(expo-font@55.0.8)(expo@55.0.31)(react-native@0.83.10(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.2.18)(bufferutil@4.1.0)(react@19.2.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.2.0)
       react:
         specifier: 19.2.0
         version: 19.2.0
