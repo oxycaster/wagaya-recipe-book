@@ -24,6 +24,7 @@ import {
   extractor,
 } from '../extractor.mjs'
 import { estimateImport, splitHtml, MAX_SCAN_OUTPUT_TOKENS } from '../import-cost.mjs'
+import { completeRecipeJsonLd } from '../recipe-source.mjs'
 
 let pg, db, svc, admin, testDatabase
 const config = {
@@ -651,6 +652,66 @@ test('long HTML is split without loss and receives a token-based quote', () => {
   const estimate = estimateImport(long)
   assert.ok(estimate.estimatedInputTokens > 1000)
   assert.ok(estimate.maximumCredits >= 1)
+})
+test('one complete Recipe JSON-LD becomes the model input while related content is ignored', () => {
+  const source = `<html><body>
+    <script type="application/ld+json">{
+      "@context":"https://schema.org",
+      "@graph":[{"@type":"Recipe","@id":"recipe-1","name":"ハムカツ",
+        "recipeIngredient":["ハム 16枚","パン粉 50g"],
+        "recipeInstructions":[{"@type":"HowToStep","text":"ハムを揚げる。"}]}]
+    }</script>
+    <h1>ハムカツ</h1><p>ハム 16枚</p><p>ハムを揚げる。</p>
+    <aside>関連レシピ: チーズハムカツ、揚げないハムカツ、コロッケ</aside>
+  </body></html>`
+  const candidate = completeRecipeJsonLd(source)
+  assert.ok(candidate)
+  assert.equal(JSON.parse(candidate).name, 'ハムカツ')
+  assert.equal(candidate.includes('関連レシピ'), false)
+  assert.equal(estimateImport(source).chunks.join(''), candidate)
+})
+test('extractor scans only a single complete Recipe JSON-LD candidate', async () => {
+  const source = `<script type="application/ld+json">{
+    "@type":"Recipe","name":"卵焼き","recipeIngredient":["卵 2個"],
+    "recipeInstructions":[{"@type":"HowToStep","text":"卵を焼く"}]
+  }</script><h1>卵焼き</h1><p>卵 2個</p><p>卵を焼く</p><aside>関連レシピ: オムレツ</aside>`
+  const inputs = []
+  const run = extractor(
+    { OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'configured-model' },
+    async (_url, request) => {
+      const body = JSON.parse(request.body)
+      inputs.push(body.input)
+      const value =
+        body.max_output_tokens === MAX_SCAN_OUTPUT_TOKENS
+          ? {
+              classification: 'single', candidateId: '卵焼き',
+              evidence: ['卵焼き'], needsPrevious: false, needsNext: false,
+            }
+          : { isRecipe: true, reason: '', evidence: ['卵焼き', '卵 2個'], recipe: card }
+      return {
+        ok: true,
+        json: async () => ({
+          status: 'completed', model: body.model, usage: {},
+          output: [{ content: [{ type: 'output_text', text: JSON.stringify(value) }] }],
+        }),
+      }
+    },
+  )
+  assert.deepEqual((await run(source)).card, card)
+  assert.equal(inputs.length, 2)
+  assert.equal(inputs.some((input) => input.includes('関連レシピ')), false)
+})
+test('missing, incomplete, malformed, or multiple Recipe JSON-LD falls back to full HTML', () => {
+  const cases = [
+    '<html><body><h1>卵焼き</h1></body></html>',
+    '<script type="application/ld+json">{"@type":"Recipe","name":"卵焼き"}</script><p>本文</p>',
+    '<script type="application/ld+json">{broken</script><p>本文</p>',
+    `<script type="application/ld+json">[{"@type":"Recipe","name":"A","recipeIngredient":["卵"],"recipeInstructions":["焼く"]},{"@type":"Recipe","name":"B","recipeIngredient":["米"],"recipeInstructions":["炊く"]}]</script>`,
+  ]
+  for (const source of cases) {
+    assert.equal(completeRecipeJsonLd(source), null)
+    assert.equal(estimateImport(source).chunks.join(''), source)
+  }
 })
 test('HTTP requires auth and webhook secret, validates IDs, uploads without public HTML routes', async () => {
   const { user, book } = await setup(),

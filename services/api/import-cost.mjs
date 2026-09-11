@@ -1,4 +1,5 @@
 import { getEncoding } from 'js-tiktoken'
+import { completeRecipeJsonLd } from './recipe-source.mjs'
 
 export const MAX_CHUNK_INPUT_TOKENS = 12000
 export const MAX_FINAL_INPUT_TOKENS = 24000
@@ -80,7 +81,8 @@ const yen = (tokens, usdPerMillion, config) =>
 
 export function estimateImport(html, env = process.env) {
   const config = importCostConfig(env)
-  const chunks = splitHtml(html)
+  const structuredRecipe = completeRecipeJsonLd(html)
+  const chunks = splitHtml(structuredRecipe || html)
   const estimatedInputTokens = chunks.reduce(
     (sum, chunk) => sum + countTokens(chunk),
     0,

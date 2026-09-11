@@ -14,6 +14,7 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 
 - 2026-09-11 取り込み履歴の大量件数対応: 「取り込み」画面から完了済み原本の長大な一覧を分離し、同タブ内の階層画面「取り込み履歴」にURL検索・状態絞り込み・30件単位のカーソルページング・HTML原本共有を追加した。通常画面は未処理・処理中・要対応を新しい順に最大10件だけ表示し、完了した項目は履歴へ移る。DBには利用者・帖・作成日時とジョブ参照の索引を追加し、既存の全件APIは互換用に維持した。
 - 履歴改善の検証: PGliteとローカル実PostgreSQL 18の双方でAPI 28/28成功（ページ境界の重複なし、URL検索、状態絞り込み、別利用者の原本メタデータ非公開、不正カーソル拒否を含む）。モバイル型検査、Expo依存関係検査、iOS export（5.4MB）、既存Web build、`git diff --check`に成功。Simulatorは開発ログイン画面まで起動したが認証セッションが消えていたため、認証後の履歴画面は今回未表示。次のdevelopmentログインまたはTestFlight buildで、390px相当、ライト/ダーク、文字拡大、検索0件、30件追加読み込みを実画面確認する。
+- 2026-09-11 DELISH KITCHEN取り込み誤判定を修正: 対象URLの現行HTMLは281,845文字で、完全なRecipe JSON-LDは「懐かしい味わい！ ハムカツ」1件。一方、FAQ内の別レシピ言及、関連レシピ・関連記事が後続断片に多数含まれ、全断片スキャンが本体以外を `multiple` / `uncertain` と誤認しうる構造だった。単一で名前・材料・手順が揃ったRecipe JSON-LDを汎用的に選び、LLMの主入力にする処理を追加。不在・不完全・壊れたJSON・複数候補時は従来の原本全体の欠落なき断片判定へ戻す。重複候補は `@id` / URLが同じ場合だけ同一視し、原本保存・LLM抽出・原本全体との最終照合・複数レシピ保護は維持した。対象URLは材料8件・手順4件を含む2,587トークンの単一候補、1断片、最大1権になった。最新mainへのrebase後、`cd services/api && mise exec -- pnpm test` は31/31成功、ルートの `mise exec -- pnpm build`、`apps/mobile` の `mise exec -- pnpm check`、`git diff --check` も成功。実OpenAI、本番workerへの配備、失敗済みジョブの再試行は未実施。
 
 - 2026-09-06: 現行React/Vite/Express/JSONとlyrical-libraryのExpo 55構成を確認。設計/受入条件を文書化。
 - 2026-09-06 P1/P2: services/api に専用PostgreSQL schema、JWT認証、レシピ帖/家族/招待、S3原本、公開IP固定URL取得、OpenAI structured outputs、DBリースワーカー、購入/返金台帳、アカウント削除を追加。

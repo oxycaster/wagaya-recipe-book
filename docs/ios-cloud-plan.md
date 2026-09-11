@@ -13,6 +13,7 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 - あらゆるサイト構造へ柔軟に対応することを優先し、サイト固有のセレクタ、要素名、文言、既知サイト一覧による抽出や、広告・ナビゲーションと推定した要素を機械的に削除する前処理へ依存しない。
 - 保存した原本HTMLは改変せず保持する。入力がモデル上限を超える場合も、内容を機械的に捨てて解決せず、原本を欠落なく分割してLLMで段階的に判定・統合するなど、未知の構造を保持できる方式を採る。
 - JSON-LDなどの構造化情報は有力な根拠として利用できるが、それが存在することを前提にせず、本文との照合と出典検証を維持する。
+- 完全な `Recipe` JSON-LDが単一候補として得られる場合は、それをLLMの主入力にして、関連レシピ・FAQ・広告などを別候補と誤認する確率と費用を下げる。構造化情報がない、不完全、または複数候補の場合は、原本全体の欠落なき断片判定へ戻す。
 - 複数レシピ、根拠不足、曖昧な内容は自動確定せず `needs_review` とし、失敗・要確認では取り込み権を消費しない。
 
 本番API/workerは AWS CDK 管理のLightsail 2GB instance（Docker）に配置する。static IPを固定送信元とし、Crunchy Bridgeの接続許可はこのIPだけにする。APIと既存のDBリース型workerを同じイメージで稼働し、OpenAI・S3・Clerkへの外向き通信もこのホストから行う。GitHub ActionsはGitHub OIDCで限定IAMロールを引き受け、Lightsail APIから短期SSH鍵を取得して更新する。固定のAWSアクセスキーやSSH秘密鍵はGitHubへ置かない。S3、Lightsail、static IP、IAM、Secrets Manager、GitHub OIDC、Route 53のAPIレコードはCDKで管理する。developは `wagaya-recipe-book-develop` AWS account、prodは `wagaya-recipe-book-production` AWS accountを使用する。旧Terraform S3バケットは別アカウントに残したままにし、新しいprod CDKバケットの受入後に別途廃止する。
