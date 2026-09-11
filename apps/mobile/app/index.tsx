@@ -1134,57 +1134,80 @@ function RecipeDetail({
       )}
       <View style={styles.panel}>
         <Text style={styles.heading}>材料</Text>
-        {card.ingredients.map((ingredient, i) =>
-          edit ? (
-            <View key={i}>
-              <Field
-                label={`材料 ${i + 1}`}
-                value={ingredient.name}
-                onChangeText={(name) =>
-                  update({
-                    ingredients: card.ingredients.map((v, n) =>
-                      n === i ? { ...v, name } : v,
-                    ),
-                  })
-                }
-              />
-              <Field
-                label="分量"
-                value={ingredient.amount}
-                onChangeText={(amount) =>
-                  update({
-                    ingredients: card.ingredients.map((v, n) =>
-                      n === i ? { ...v, amount } : v,
-                    ),
-                  })
-                }
-              />
-              <Button
-                secondary
-                label="この材料を削除"
-                onPress={() =>
-                  update({
-                    ingredients: card.ingredients.filter((_, n) => n !== i),
-                  })
-                }
-              />
-            </View>
-          ) : (
-            <View style={styles.ingredient} key={i}>
-              <Text style={styles.body}>{ingredient.name}</Text>
-              <Text style={styles.body}>
-                {scaleAmount(ingredient.amount, ratio).text}
-              </Text>
-            </View>
-          ),
-        )}
+        {card.ingredients.map((ingredient, i) => (
+          <React.Fragment key={i}>
+            {!edit &&
+              ingredient.group &&
+              ingredient.group !== card.ingredients[i - 1]?.group && (
+                <Text accessibilityRole="header" style={styles.ingredientGroup}>
+                  {ingredient.group}
+                </Text>
+              )}
+            {edit ? (
+              <View>
+                <Field
+                  label={`材料 ${i + 1}のグループ（なければ空欄）`}
+                  value={ingredient.group || ''}
+                  onChangeText={(group) =>
+                    update({
+                      ingredients: card.ingredients.map((v, n) =>
+                        n === i ? { ...v, group: group || null } : v,
+                      ),
+                    })
+                  }
+                />
+                <Field
+                  label={`材料 ${i + 1}`}
+                  value={ingredient.name}
+                  onChangeText={(name) =>
+                    update({
+                      ingredients: card.ingredients.map((v, n) =>
+                        n === i ? { ...v, name } : v,
+                      ),
+                    })
+                  }
+                />
+                <Field
+                  label="分量"
+                  value={ingredient.amount}
+                  onChangeText={(amount) =>
+                    update({
+                      ingredients: card.ingredients.map((v, n) =>
+                        n === i ? { ...v, amount } : v,
+                      ),
+                    })
+                  }
+                />
+                <Button
+                  secondary
+                  label="この材料を削除"
+                  onPress={() =>
+                    update({
+                      ingredients: card.ingredients.filter((_, n) => n !== i),
+                    })
+                  }
+                />
+              </View>
+            ) : (
+              <View style={styles.ingredient}>
+                <Text style={styles.body}>{ingredient.name}</Text>
+                <Text style={styles.body}>
+                  {scaleAmount(ingredient.amount, ratio).text}
+                </Text>
+              </View>
+            )}
+          </React.Fragment>
+        ))}
         {edit && (
           <Button
             secondary
             label="材料を追加"
             onPress={() =>
               update({
-                ingredients: [...card.ingredients, { name: '', amount: '' }],
+                ingredients: [
+                  ...card.ingredients,
+                  { name: '', amount: '', group: null },
+                ],
               })
             }
           />
@@ -2450,6 +2473,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: colors.separator,
     paddingVertical: 9,
+  },
+  ingredientGroup: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '700',
+    color: green,
+    marginTop: 8,
   },
   step: { fontSize: 17, color: colors.text, lineHeight: 28, marginBottom: 12 },
   searchField: {

@@ -10,6 +10,7 @@ import {
   MAX_MODEL_OUTPUT_TOKENS,
   MAX_SCAN_OUTPUT_TOKENS,
   SCAN_INSTRUCTIONS,
+  TARGETED_SCAN_INSTRUCTIONS,
   EXTRACTION_INSTRUCTIONS,
   countTokens,
 } from './import-cost.mjs'
@@ -18,7 +19,13 @@ export { MAX_MODEL_OUTPUT_TOKENS }
 const resultSchema = z.object({
   isRecipe: z.boolean(), reason: z.string().max(1000),
   evidence: z.array(z.string().min(1).max(2000)).max(10),
-  recipe: cardSchema.nullable(),
+  recipe: cardSchema.extend({
+    ingredients: z.array(z.object({
+      name: z.string().min(1).max(300),
+      amount: z.string().max(300),
+      group: z.string().trim().min(1).max(300).nullable(),
+    }).strict()).min(1).max(200),
+  }).strict().nullable(),
 }).strict()
 const scanSchema = z.object({
   classification: z.enum(['none', 'single', 'multiple', 'uncertain']),
@@ -59,6 +66,7 @@ export function validateExtraction(value, source) {
   if (!haystack.includes(normalize(result.recipe.title))) return null
   if (!result.recipe.ingredients.every((i) => haystack.includes(normalize(i.name)))) return null
   if (!result.recipe.ingredients.every((i) => !i.amount || haystack.includes(normalize(i.amount)))) return null
+  if (!result.recipe.ingredients.every((i) => !i.group || haystack.includes(normalize(i.group)))) return null
   if (!result.recipe.steps.every((step) => coverage(step) >= 0.85)) return null
   return result.recipe
 }
@@ -89,13 +97,19 @@ export function extractor(env, fetcher = fetch) {
     const scans = [], calls = []
     await checkpoint.progress?.('scan', 0, estimate.chunks.length)
     for (let index = 0; index < estimate.chunks.length; index++) {
-      const chunk = estimate.chunks[index], hash = chunkHash(chunk)
+      const chunk = estimate.chunks[index]
+      const scanInput = estimate.structuredRecipe
+        ? `Primary Recipe JSON-LD:\n${estimate.structuredRecipe}\n\nFragment ${index + 1} of ${estimate.chunks.length}:\n${chunk}`
+        : `Fragment ${index + 1} of ${estimate.chunks.length}:\n${chunk}`
+      const hash = chunkHash(scanInput)
       let saved = await checkpoint.load?.('scan', index, hash)
       if (!saved) {
         const call = await responseCall(env, fetcher, {
           model: models.scanModel, max_output_tokens: MAX_SCAN_OUTPUT_TOKENS,
-          instructions: SCAN_INSTRUCTIONS,
-          input: `Fragment ${index + 1} of ${estimate.chunks.length}:\n${chunk}`,
+          instructions: estimate.structuredRecipe
+            ? TARGETED_SCAN_INSTRUCTIONS
+            : SCAN_INSTRUCTIONS,
+          input: scanInput,
           text: { format: { type: 'json_schema', name: 'recipe_fragment_scan', strict: true, schema: z.toJSONSchema(scanSchema, { target: 'draft-7' }) } },
         })
         const result = call.text ? scanSchema.parse(JSON.parse(call.text)) : emptyScan
@@ -119,7 +133,12 @@ export function extractor(env, fetcher = fetch) {
     const ordered = [...selected].sort((a, b) => a - b)
     if (ordered.some((value, i) => i && value !== ordered[i - 1] + 1))
       return { card: null, model: models.scanModel, usage: { calls }, calls }
-    const candidateHtml = ordered.map((i) => estimate.chunks[i]).join('')
+    const candidateHtml = [
+      estimate.structuredRecipe
+        ? `Primary Recipe JSON-LD:\n${estimate.structuredRecipe}`
+        : '',
+      ordered.map((i) => estimate.chunks[i]).join(''),
+    ].filter(Boolean).join('\n\nSource HTML context:\n')
     if (countTokens(candidateHtml) > MAX_FINAL_INPUT_TOKENS)
       return { card: null, model: models.scanModel, usage: { calls }, calls }
     await checkpoint.progress?.('extract', estimate.chunks.length, estimate.chunks.length)

@@ -26,6 +26,7 @@ export const cardSchema = z
           .object({
             name: z.string().min(1).max(300),
             amount: z.string().max(300),
+            group: z.string().trim().min(1).max(300).nullable().optional(),
           })
           .strict(),
       )

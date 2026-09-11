@@ -27,21 +27,25 @@ const billing = {
   environments: ['SANDBOX'],
   products: { recipe_import_10: 10 },
 }
-await billingEvent(
-  db,
-  {
-    id: randomUUID(),
-    type: 'NON_RENEWING_PURCHASE',
-    app_id: 'local-demo',
-    store: 'APP_STORE',
-    environment: 'SANDBOX',
-    app_user_id: id,
-    product_id: 'recipe_import_10',
-    transaction_id: randomUUID(),
-    event_timestamp_ms: Date.now(),
-  },
-  billing,
-)
+const grantDemoCredits = (user) => {
+  const reference = hash(user).slice(0, 32)
+  return billingEvent(
+    db,
+    {
+      id: `local-demo-credit-${reference}`,
+      type: 'NON_RENEWING_PURCHASE',
+      app_id: 'local-demo',
+      store: 'APP_STORE',
+      environment: 'SANDBOX',
+      app_user_id: user,
+      product_id: 'recipe_import_10',
+      transaction_id: `local-demo-credit-${reference}`,
+      event_timestamp_ms: Date.now(),
+    },
+    billing,
+  )
+}
+await grantDemoCredits(id)
 const objects = new Map(),
   store = {
     put: async (k, v) => objects.set(k, v),
@@ -64,7 +68,9 @@ const cards = [
     ingredients: [
       { name: 'なす', amount: '2本' },
       { name: '豚こま肉', amount: '150g' },
-      { name: '味噌', amount: '大さじ1' },
+      { name: '味噌', amount: '大さじ1', group: '（A）' },
+      { name: 'みりん', amount: '大さじ1', group: '（A）' },
+      { name: '小ねぎ', amount: '適量', group: '仕上げ' },
     ],
     steps: [
       'なすを食べやすい大きさに切る。',
@@ -133,7 +139,7 @@ const session = () => ({
   user: authUser,
 })
 const app = express()
-const authenticate = process.env.CLERK_ISSUER_URL
+const clerkAuthenticate = process.env.CLERK_ISSUER_URL
   ? authenticator(
       process.env.CLERK_ISSUER_URL,
       undefined,
@@ -142,6 +148,14 @@ const authenticate = process.env.CLERK_ISSUER_URL
         .map((value) => value.trim())
         .filter(Boolean),
     )
+  : null
+const authenticate = clerkAuthenticate
+  ? async (token) => {
+      const actor = await clerkAuthenticate(token)
+      await svc.identity(actor.id, actor.email)
+      await grantDemoCredits(actor.id)
+      return actor
+    }
   : async (token) => {
       if (token !== secret) throw new Fault(401, 'INVALID_SESSION')
       return { id, email }

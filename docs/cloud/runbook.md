@@ -38,7 +38,7 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4
 mise exec -- pnpm exec expo run:ios --no-bundler
 ```
 
-開発クライアントの接続先は `http://127.0.0.1:8093`。自分のメールアドレスへ届くClerkの確認コードでログインする。APIデータはプロセス終了時に消え、課金・S3・OpenAIは実行しない。development instanceの成功をproduction instanceの検証済みとは扱わない。終了時は各プロセスをCtrl-Cで停止する。
+開発クライアントの接続先は `http://127.0.0.1:8093`。自分のメールアドレスへ届くClerkの確認コードでログインする。ローカルfixtureは認証済みユーザーへ起動中一度だけテスト用取り込み権10回分を自動付与するため、StoreKit購入なしで取り込みを確認できる。APIデータとテスト用権利はプロセス終了時に消え、実課金・S3・OpenAIは実行しない。development instanceの成功をproduction instanceの検証済みとは扱わない。終了時は各プロセスをCtrl-Cで停止する。
 
 `expo run:ios --no-bundler` が別の8081ポートを開いた場合は、開発クライアントで上記8093を選ぶ。localhostがIPv6のみでlistenされる環境では上記NODE_OPTIONSを使う（端末が要求する127.0.0.1と一致させる）。
 

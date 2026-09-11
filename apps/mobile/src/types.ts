@@ -8,7 +8,7 @@ export type Card = {
   category: '主菜' | '副菜' | '汁物' | 'その他'
   minutes: number | null
   servings: number | null
-  ingredients: { name: string; amount: string }[]
+  ingredients: { name: string; amount: string; group?: string | null }[]
   steps: string[]
   tags: string[]
   sourceUrl?: string

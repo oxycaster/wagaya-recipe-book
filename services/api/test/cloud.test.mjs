@@ -7,7 +7,7 @@ import pgDriver from 'pg'
 import { database } from '../db.mjs'
 import { authenticator } from '../auth.mjs'
 import { generateKeyPair, exportJWK, createLocalJWKSet, SignJWT } from 'jose'
-import { domain, hash } from '../domain.mjs'
+import { cardSchema, domain, hash } from '../domain.mjs'
 import { billingEvent } from '../billing.mjs'
 import { claimJob, finishJob, processOne, cleanupOne } from '../jobs.mjs'
 import { createApp } from '../app.mjs'
@@ -37,7 +37,7 @@ const card = {
   category: '主菜',
   minutes: 10,
   servings: 2,
-  ingredients: [{ name: '卵', amount: '2個' }],
+  ingredients: [{ name: '卵', amount: '2個', group: null }],
   steps: ['卵を焼く'],
   tags: [],
 }
@@ -522,6 +522,13 @@ test('recipe image fetch accepts validated AVIF responses', async () => {
   assert.equal(isSupportedImage('image/avif', Buffer.from('not-an-image')), false)
 })
 test('extraction retains source evidence and rejects fabricated ingredients/refusal/incomplete output', async () => {
+  assert.equal(
+    cardSchema.safeParse({
+      ...card,
+      ingredients: [{ name: '卵', amount: '2個' }],
+    }).success,
+    true,
+  )
   const source = prepareHtml(html)
   assert.deepEqual(
     validateExtraction(
@@ -536,7 +543,7 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
         isRecipe: true,
         reason: '',
         evidence: ['卵焼き'],
-        recipe: { ...card, ingredients: [{ name: '砂糖', amount: '10g' }] },
+        recipe: { ...card, ingredients: [{ name: '砂糖', amount: '10g', group: null }] },
       },
       source,
     ),
@@ -560,13 +567,56 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
           category: '副菜',
           minutes: null,
           servings: null,
-          ingredients: [{ name: 'なす', amount: '2本' }],
+          ingredients: [{ name: 'なす', amount: '2本', group: null }],
           steps: ['なすを縦半分に切り鍋でやわらかくなるまで煮る。'],
           tags: [],
         },
       },
       punctuationSource,
     ),
+  )
+  const groupedSource = prepareHtml(
+    '<h1>煮びたし</h1><p>なす 2本</p><h2>（A）</h2><p>水 150ml</p><p>（A）を加えて煮る。</p>',
+  )
+  const groupedCard = {
+    ...card,
+    title: '煮びたし',
+    ingredients: [
+      { name: 'なす', amount: '2本', group: null },
+      { name: '水', amount: '150ml', group: '（A）' },
+    ],
+    steps: ['（A）を加えて煮る。'],
+  }
+  assert.deepEqual(
+    validateExtraction(
+      {
+        isRecipe: true,
+        reason: '',
+        evidence: ['煮びたし', '（A）', '水 150ml'],
+        recipe: groupedCard,
+      },
+      groupedSource,
+    ),
+    groupedCard,
+  )
+  assert.equal(
+    validateExtraction(
+      {
+        isRecipe: true,
+        reason: '',
+        evidence: ['煮びたし', '水 150ml'],
+        recipe: {
+          ...groupedCard,
+          ingredients: groupedCard.ingredients.map((ingredient) =>
+            ingredient.name === '水'
+              ? { ...ingredient, group: '合わせ調味料' }
+              : ingredient,
+          ),
+        },
+      },
+      groupedSource,
+    ),
+    null,
   )
   const env = { OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'configured-model' }
   let modelCalls = 0
@@ -589,6 +639,10 @@ test('extraction retains source evidence and rejects fabricated ingredients/refu
       }
     }
     assert.equal(body.max_output_tokens, MAX_MODEL_OUTPUT_TOKENS)
+    const recipeSchema = body.text.format.schema.properties.recipe.anyOf.find(
+      (option) => option.type === 'object',
+    )
+    assert.ok(recipeSchema.properties.ingredients.items.required.includes('group'))
     return {
       ok: true,
       json: async () => ({
@@ -653,7 +707,7 @@ test('long HTML is split without loss and receives a token-based quote', () => {
   assert.ok(estimate.estimatedInputTokens > 1000)
   assert.ok(estimate.maximumCredits >= 1)
 })
-test('one complete Recipe JSON-LD becomes the model input while related content is ignored', () => {
+test('one complete Recipe JSON-LD constrains full-page fragment scans', () => {
   const source = `<html><body>
     <script type="application/ld+json">{
       "@context":"https://schema.org",
@@ -668,26 +722,39 @@ test('one complete Recipe JSON-LD becomes the model input while related content 
   assert.ok(candidate)
   assert.equal(JSON.parse(candidate).name, 'ハムカツ')
   assert.equal(candidate.includes('関連レシピ'), false)
-  assert.equal(estimateImport(source).chunks.join(''), candidate)
+  const estimate = estimateImport(source)
+  assert.equal(estimate.structuredRecipe, candidate)
+  assert.equal(estimate.chunks.join(''), source)
 })
-test('extractor scans only a single complete Recipe JSON-LD candidate', async () => {
+test('extractor uses Recipe JSON-LD as the target while retaining visible HTML context', async () => {
   const source = `<script type="application/ld+json">{
     "@type":"Recipe","name":"卵焼き","recipeIngredient":["卵 2個"],
-    "recipeInstructions":[{"@type":"HowToStep","text":"卵を焼く"}]
-  }</script><h1>卵焼き</h1><p>卵 2個</p><p>卵を焼く</p><aside>関連レシピ: オムレツ</aside>`
-  const inputs = []
+    "recipeInstructions":[{"@type":"HowToStep","text":"（A）の卵を焼く"}]
+  }</script><h1>卵焼き</h1><h2>（A）</h2><p>卵 2個</p><p>（A）の卵を焼く</p><aside>関連レシピ: オムレツ</aside>`
+  const inputs = [], instructions = []
+  const targetCard = {
+    ...card,
+    ingredients: [{ name: '卵', amount: '2個', group: '（A）' }],
+    steps: ['（A）の卵を焼く'],
+  }
   const run = extractor(
     { OPENAI_API_KEY: 'test-only', OPENAI_MODEL: 'configured-model' },
     async (_url, request) => {
       const body = JSON.parse(request.body)
       inputs.push(body.input)
+      instructions.push(body.instructions)
       const value =
         body.max_output_tokens === MAX_SCAN_OUTPUT_TOKENS
           ? {
               classification: 'single', candidateId: '卵焼き',
               evidence: ['卵焼き'], needsPrevious: false, needsNext: false,
             }
-          : { isRecipe: true, reason: '', evidence: ['卵焼き', '卵 2個'], recipe: card }
+          : {
+              isRecipe: true,
+              reason: '',
+              evidence: ['卵焼き', '（A）', '卵 2個'],
+              recipe: targetCard,
+            }
       return {
         ok: true,
         json: async () => ({
@@ -697,9 +764,11 @@ test('extractor scans only a single complete Recipe JSON-LD candidate', async ()
       }
     },
   )
-  assert.deepEqual((await run(source)).card, card)
+  assert.deepEqual((await run(source)).card, targetCard)
   assert.equal(inputs.length, 2)
-  assert.equal(inputs.some((input) => input.includes('関連レシピ')), false)
+  assert.ok(inputs.every((input) => input.includes('Primary Recipe JSON-LD')))
+  assert.ok(inputs.every((input) => input.includes('関連レシピ')))
+  assert.match(instructions[0], /related recipes/)
 })
 test('missing, incomplete, malformed, or multiple Recipe JSON-LD falls back to full HTML', () => {
   const cases = [
