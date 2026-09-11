@@ -13,8 +13,9 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 - あらゆるサイト構造へ柔軟に対応することを優先し、サイト固有のセレクタ、要素名、文言、既知サイト一覧による抽出や、広告・ナビゲーションと推定した要素を機械的に削除する前処理へ依存しない。
 - 保存した原本HTMLは改変せず保持する。入力がモデル上限を超える場合も、内容を機械的に捨てて解決せず、原本を欠落なく分割してLLMで段階的に判定・統合するなど、未知の構造を保持できる方式を採る。
 - JSON-LDなどの構造化情報は有力な根拠として利用できるが、それが存在することを前提にせず、本文との照合と出典検証を維持する。
-- 完全な `Recipe` JSON-LDが単一候補として得られる場合は、それをLLMの主入力にして、関連レシピ・FAQ・広告などを別候補と誤認する確率と費用を下げる。構造化情報がない、不完全、または複数候補の場合は、原本全体の欠落なき断片判定へ戻す。
+- 完全な `Recipe` JSON-LDが単一候補として得られる場合は、それをLLMの主対象にして、関連レシピ・FAQ・広告などを別候補と誤認する確率を下げる。ただしJSON-LDの材料配列は見出しを欠落させる場合があるため、原本HTMLの全断片も低価格モデルで主対象との関連と材料グループを判定し、必要な原文断片を最終抽出へ添える。構造化情報がない、不完全、または複数候補の場合は、原本全体の欠落なき断片判定へ戻す。
 - 複数レシピ、根拠不足、曖昧な内容は自動確定せず `needs_review` とし、失敗・要確認では取り込み権を消費しない。
+- 材料は名前・分量に加えて、原文に見出しがある場合は不定形なグループ名（例: `（A）`、`☆バッター液`、`★付け合わせ`）をLLMで抽出して各材料へ関連付ける。グループなしの材料も同じ配列内で扱い、見出しと材料の原文順を保持する。手順中のグループ参照は言い換えず残す。
 
 本番API/workerは AWS CDK 管理のLightsail 2GB instance（Docker）に配置する。static IPを固定送信元とし、Crunchy Bridgeの接続許可はこのIPだけにする。APIと既存のDBリース型workerを同じイメージで稼働し、OpenAI・S3・Clerkへの外向き通信もこのホストから行う。GitHub ActionsはGitHub OIDCで限定IAMロールを引き受け、Lightsail APIから短期SSH鍵を取得して更新する。固定のAWSアクセスキーやSSH秘密鍵はGitHubへ置かない。S3、Lightsail、static IP、IAM、Secrets Manager、GitHub OIDC、Route 53のAPIレコードはCDKで管理する。developは `wagaya-recipe-book-develop` AWS account、prodは `wagaya-recipe-book-production` AWS accountを使用する。旧Terraform S3バケットは別アカウントに残したままにし、新しいprod CDKバケットの受入後に別途廃止する。
 
@@ -56,7 +57,7 @@ iOSの初期表示は本日の献立とし、献立・レシピ・取り込み�
 
 P5のホスティング工程では、CDKアプリ、GitHub OIDC信頼ポリシー（対象repository・production environmentに限定）、非公開S3、Lightsail 2GB/static IP/日次snapshot、Secrets Managerをproduction accountへ作成する。`api.wagaya.oxycaster.com` のA recordは親Route 53 accountの別CDK stackで管理する。2026-09-09にGitHub Actionsからruntimeと両CDK stackを更新し、公開HTTPS health、固定IPのDNS、DB firewall、SSH閉鎖まで受入済み。次に実認証付きAPI、S3、OpenAIの受入を行う。
 
-P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、devのTailnet内ローカルfixtureへ接続する。続いてprodのClerk、Crunchy Bridge PostgreSQL 18、S3、API/worker、OpenAI、RevenueCatへ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実クラウド受入済みとは扱わない。
+P5は二段階に分ける。最初の内部TestFlightは画面と端末操作の確認用で、devのTailnet内ローカルfixtureへ接続する。ローカルfixtureは認証済み開発ユーザーへ起動中一度だけ10回分のテスト用取り込み権を付与し、StoreKit購入なしで保存・見積もり・カード化を検証できるようにする。続いてprodのClerk、Crunchy Bridge PostgreSQL 18、S3、API/worker、OpenAI、RevenueCatへ切り替え、実サービス受入を完了してから外部テスター配布や審査へ進む。fixture版を実課金・実クラウド受入済みとは扱わない。
 
 P5以降の公開作業は `docs/app-store-release-plan.md` のM0〜M7とG0〜G7で管理する。App Reviewへ提出するproduction buildは、fixture用 `testflight` profileと分離し、公開可否ゲートをすべて満たすこと。
 
