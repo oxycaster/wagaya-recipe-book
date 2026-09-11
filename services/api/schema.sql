@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS billing_events (
 );
 CREATE INDEX IF NOT EXISTS jobs_queue ON jobs(status,lease_until,created_at);
 CREATE INDEX IF NOT EXISTS member_users ON members(user_id);
+CREATE INDEX IF NOT EXISTS archives_user_book_created ON archives(user_id,book_id,created_at DESC,id DESC);
+CREATE INDEX IF NOT EXISTS jobs_archive_created ON jobs(archive_id,created_at DESC);
 REVOKE ALL ON SCHEMA recipe_cloud FROM PUBLIC;
 
 -- Safe when upgrading a database created by an earlier app build.
