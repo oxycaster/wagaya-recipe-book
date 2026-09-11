@@ -12,6 +12,9 @@ P1〜P4のローカル実装・検証まで完了。iOS native simulator build�
 
 ## 作業記録
 
+- 2026-09-11 取り込み履歴の大量件数対応: 「取り込み」画面から完了済み原本の長大な一覧を分離し、同タブ内の階層画面「取り込み履歴」にURL検索・状態絞り込み・30件単位のカーソルページング・HTML原本共有を追加した。通常画面は未処理・処理中・要対応を新しい順に最大10件だけ表示し、完了した項目は履歴へ移る。DBには利用者・帖・作成日時とジョブ参照の索引を追加し、既存の全件APIは互換用に維持した。
+- 履歴改善の検証: PGliteとローカル実PostgreSQL 18の双方でAPI 28/28成功（ページ境界の重複なし、URL検索、状態絞り込み、別利用者の原本メタデータ非公開、不正カーソル拒否を含む）。モバイル型検査、Expo依存関係検査、iOS export（5.4MB）、既存Web build、`git diff --check`に成功。Simulatorは開発ログイン画面まで起動したが認証セッションが消えていたため、認証後の履歴画面は今回未表示。次のdevelopmentログインまたはTestFlight buildで、390px相当、ライト/ダーク、文字拡大、検索0件、30件追加読み込みを実画面確認する。
+
 - 2026-09-06: 現行React/Vite/Express/JSONとlyrical-libraryのExpo 55構成を確認。設計/受入条件を文書化。
 - 2026-09-06 P1/P2: services/api に専用PostgreSQL schema、JWT認証、レシピ帖/家族/招待、S3原本、公開IP固定URL取得、OpenAI structured outputs、DBリースワーカー、購入/返金台帳、アカウント削除を追加。
 - 検証: `cd services/api && mise exec -- pnpm test` → 12/12成功。PGliteで実際のPostgreSQL SQLを実行し、HTTP・権限・重複・予約/返還・ワーカー再開を検証。実PostgreSQLの複数接続ロックと実プロバイダーは別途受入が必要。

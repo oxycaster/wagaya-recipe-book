@@ -40,6 +40,7 @@ import {
 } from '../src/client'
 import type {
   Archive,
+  ArchivePage,
   Book,
   Card,
   SharingState,
@@ -115,9 +116,13 @@ function Button({
 function SearchField({
   value,
   onChangeText,
+  accessibilityLabel = 'レシピを検索',
+  placeholder = '料理名やタグで検索',
 }: {
   value: string
   onChangeText: (value: string) => void
+  accessibilityLabel?: string
+  placeholder?: string
 }) {
   return (
     <View style={styles.searchField}>
@@ -128,11 +133,11 @@ function SearchField({
         style={styles.searchIcon}
       />
       <TextInput
-        accessibilityLabel="レシピを検索"
+        accessibilityLabel={accessibilityLabel}
         autoCorrect={false}
         clearButtonMode="never"
         onChangeText={onChangeText}
-        placeholder="料理名やタグで検索"
+        placeholder={placeholder}
         placeholderTextColor={colors.secondaryText}
         returnKeyType="search"
         style={styles.searchInput}
@@ -1292,21 +1297,82 @@ function Imports({
     [html, setHtml] = useState<string | undefined>(),
     [filename, setFilename] = useState(''),
     [consent, setConsent] = useState(false),
-    [archives, setArchives] = useState<Archive[]>([])
+    [archives, setArchives] = useState<Archive[]>([]),
+    [currentTotal, setCurrentTotal] = useState(0),
+    [showHistory, setShowHistory] = useState(false),
+    [history, setHistory] = useState<Archive[]>([]),
+    [historyTotal, setHistoryTotal] = useState(0),
+    [historyCursor, setHistoryCursor] = useState<string | null>(null),
+    [historySearch, setHistorySearch] = useState(''),
+    [historyStatus, setHistoryStatus] = useState<HistoryStatus>('all'),
+    [historyLoading, setHistoryLoading] = useState(false)
   const keys = useRef(new Map<string, string>())
   const previousStatuses = useRef('')
-  const load = useCallback(
-    async () => setArchives(await api<Archive[]>(`/books/${book.id}/archives`)),
-    [book.id],
+  const load = useCallback(async () => {
+    const page = await api<ArchivePage>(
+      `/books/${book.id}/archive-history?limit=10&status=current`,
+    )
+    setArchives(page.items)
+    setCurrentTotal(page.total)
+  }, [book.id])
+  const loadHistory = useCallback(
+    async (append = false) => {
+      setHistoryLoading(true)
+      try {
+        const params = new URLSearchParams({
+          limit: '30',
+          status: historyStatus,
+        })
+        if (historySearch.trim()) params.set('query', historySearch.trim())
+        if (append && historyCursor) params.set('cursor', historyCursor)
+        const page = await api<ArchivePage>(
+          `/books/${book.id}/archive-history?${params.toString()}`,
+        )
+        setHistory((previous) =>
+          append ? [...previous, ...page.items] : page.items,
+        )
+        setHistoryTotal(page.total)
+        setHistoryCursor(page.nextCursor)
+      } finally {
+        setHistoryLoading(false)
+      }
+    },
+    [book.id, historyCursor, historySearch, historyStatus],
+  )
+  const shareOriginal = useCallback(
+    async (a: Archive) => {
+      const token = await authToken()
+      if (!token) throw new Error('ログインしてください。')
+      const response = await fetch(`${settings.api}/v1/archives/${a.id}/html`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error('原本を取得できませんでした。')
+      const file = new File(Paths.cache, `recipe-${a.id}.html`)
+      try {
+        file.write(await response.text())
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'text/html',
+          UTI: 'public.html',
+        })
+      } finally {
+        if (file.exists) file.delete()
+      }
+    },
+    [],
   )
   useEffect(() => {
     let active = true
     const poll = async () => {
       try {
-        const a = await api<Archive[]>(`/books/${book.id}/archives`)
+        const page = await api<ArchivePage>(
+          `/books/${book.id}/archive-history?limit=10&status=current`,
+        )
         if (active) {
-          setArchives(a)
-          const signature = JSON.stringify(a.map((v) => [v.id, v.status]))
+          setArchives(page.items)
+          setCurrentTotal(page.total)
+          const signature = JSON.stringify(
+            page.items.map((v) => [v.id, v.status, v.processed_chunks]),
+          )
           if (
             previousStatuses.current &&
             previousStatuses.current !== signature
@@ -1327,6 +1393,13 @@ function Imports({
       clearInterval(timer)
     }
   }, [book.id])
+  useEffect(() => {
+    if (!showHistory) return
+    const timer = setTimeout(() => {
+      void loadHistory(false).catch((e) => notify(errorText(e)))
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [showHistory, historySearch, historyStatus, book.id])
   const start = (a: Archive) =>
     void run(async () => {
       const quote = await api<ImportQuote>(
@@ -1355,6 +1428,7 @@ function Imports({
       })
       keys.current.delete(a.id)
       await load()
+      if (showHistory) await loadHistory(false)
       await refresh()
       notify('取り込みを受け付けました。アプリを閉じても処理は続きます。')
     })
@@ -1365,6 +1439,91 @@ function Imports({
     failed: '取り込み失敗（権利は未消費）',
     needs_review: '内容の確認が必要（権利は未消費）',
   }
+  if (showHistory)
+    return (
+      <>
+        <Pressable
+          accessibilityLabel="取り込み画面に戻る"
+          accessibilityRole="button"
+          onPress={() => setShowHistory(false)}
+          style={({ pressed }) => [
+            styles.backLink,
+            pressed && { opacity: 0.55 },
+          ]}
+        >
+          <SymbolView name="chevron.left" size={17} tintColor={green} />
+          <Text style={styles.backLinkText}>取り込み</Text>
+        </Pressable>
+        <Text accessibilityRole="header" style={styles.heading}>
+          取り込み履歴
+        </Text>
+        <Note>
+          保存したページをURLで探し、HTML原本を取り出せます。原本は本人だけが取得できます。
+        </Note>
+        <SearchField
+          accessibilityLabel="取り込み履歴をURLで検索"
+          placeholder="URLで検索"
+          value={historySearch}
+          onChangeText={setHistorySearch}
+        />
+        <View accessibilityRole="tablist" style={styles.filterRow}>
+          {historyFilters.map((filter) => {
+            const selected = historyStatus === filter.value
+            return (
+              <Pressable
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                key={filter.value}
+                onPress={() => setHistoryStatus(filter.value)}
+                style={({ pressed }) => [
+                  styles.filterChip,
+                  selected && styles.filterChipSelected,
+                  pressed && { opacity: 0.55 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    selected && styles.filterChipTextSelected,
+                  ]}
+                >
+                  {filter.label}
+                </Text>
+              </Pressable>
+            )
+          })}
+        </View>
+        <Note>{historyTotal}件</Note>
+        {historyLoading && !history.length ? (
+          <ActivityIndicator color={green} />
+        ) : !history.length ? (
+          <View style={styles.panel}>
+            <Text style={styles.heading}>該当する履歴がありません</Text>
+            <Note>検索語や絞り込みを変更してください。</Note>
+          </View>
+        ) : (
+          history.map((a) => (
+            <ArchiveHistoryRow
+              archive={a}
+              busy={busy}
+              key={a.id}
+              label={a.status ? labels[a.status] : '保存済み・未取り込み'}
+              onShare={() => void run(() => shareOriginal(a))}
+            />
+          ))
+        )}
+        {!!historyCursor && (
+          <Button
+            secondary
+            label={historyLoading ? '読み込み中…' : 'さらに30件を表示'}
+            disabled={busy || historyLoading}
+            onPress={() =>
+              void loadHistory(true).catch((e) => notify(errorText(e)))
+            }
+          />
+        )}
+      </>
+    )
   return (
     <>
       <Text style={styles.heading}>お気に入りを保存</Text>
@@ -1424,7 +1583,7 @@ function Imports({
                 setHtml(undefined)
                 setFilename('')
                 await load()
-                notify('ページを保存しました。下の一覧からカード化できます。')
+                notify('ページを保存しました。下の「対応中・要確認」からカード化できます。')
               })
             }
           />
@@ -1448,6 +1607,22 @@ function Imports({
         </View>
         <Note>利用可能: {wallet?.available ?? '—'}回分</Note>
       </View>
+      <Pressable
+        accessibilityHint="保存したページの一覧を開きます"
+        accessibilityRole="button"
+        onPress={() => setShowHistory(true)}
+        style={({ pressed }) => [
+          styles.historyLink,
+          pressed && { opacity: 0.55 },
+        ]}
+      >
+        <View style={{ flex: 1, gap: 3 }}>
+          <Text style={styles.heading}>取り込み履歴</Text>
+          <Note>URLの検索、状態の絞り込み、HTML原本の取り出し</Note>
+        </View>
+        <SymbolView name="chevron.right" size={17} tintColor={green} />
+      </Pressable>
+      {!!currentTotal && <Text style={styles.heading}>対応中・要確認</Text>}
       {archives.map((a) => (
         <View style={styles.panel} key={a.id}>
           <Text numberOfLines={2} style={styles.body}>
@@ -1476,40 +1651,59 @@ function Imports({
                 onPress={() => start(a)}
               />
             )}
-          <Button
-            secondary
-            label="HTML原本を取り出す"
-            disabled={busy}
-            onPress={() =>
-              void run(async () => {
-                const token = await authToken()
-                if (!token) throw new Error('ログインしてください。')
-                const response = await fetch(
-                  `${settings.api}/v1/archives/${a.id}/html`,
-                  {
-                    headers: {
-                      Authorization: `Bearer ${token}`,
-                    },
-                  },
-                )
-                if (!response.ok)
-                  throw new Error('原本を取得できませんでした。')
-                const file = new File(Paths.cache, `recipe-${a.id}.html`)
-                try {
-                  file.write(await response.text())
-                  await Sharing.shareAsync(file.uri, {
-                    mimeType: 'text/html',
-                    UTI: 'public.html',
-                  })
-                } finally {
-                  if (file.exists) file.delete()
-                }
-              })
-            }
-          />
         </View>
       ))}
+      {currentTotal > archives.length && (
+        <Note>
+          ほか{currentTotal - archives.length}件は「取り込み履歴」から確認できます。
+        </Note>
+      )}
     </>
+  )
+}
+
+type HistoryStatus = 'all' | 'succeeded' | 'active' | 'attention'
+const historyFilters: Array<{ label: string; value: HistoryStatus }> = [
+  { label: 'すべて', value: 'all' },
+  { label: '完了', value: 'succeeded' },
+  { label: '処理中', value: 'active' },
+  { label: '要確認', value: 'attention' },
+]
+function ArchiveHistoryRow({
+  archive,
+  label,
+  busy,
+  onShare,
+}: {
+  archive: Archive
+  label: string
+  busy: boolean
+  onShare: () => void
+}) {
+  const savedAt = new Date(archive.created_at)
+  const date = Number.isNaN(savedAt.getTime())
+    ? ''
+    : savedAt.toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      })
+  return (
+    <View style={styles.historyRow}>
+      <Text numberOfLines={2} style={styles.body}>
+        {archive.source_url}
+      </Text>
+      <View style={styles.historyMeta}>
+        <Text style={styles.badge}>{label}</Text>
+        {!!date && <Text style={styles.note}>{date}</Text>}
+      </View>
+      <Button
+        secondary
+        label="HTML原本を取り出す"
+        disabled={busy}
+        onPress={onShare}
+      />
+    </View>
   )
 }
 
@@ -2074,6 +2268,53 @@ const styles = StyleSheet.create({
     gap: 10,
     flexWrap: 'wrap',
   },
+  backLink: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 5,
+  },
+  backLinkText: { fontSize: 17, fontWeight: '600', color: green },
+  historyLink: {
+    minHeight: 76,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderWidth: 1,
+    borderColor: colors.separator,
+  },
+  historyRow: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    padding: 16,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colors.separator,
+  },
+  historyMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  filterRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  filterChip: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 15,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.separator,
+  },
+  filterChipSelected: { backgroundColor: green, borderColor: green },
+  filterChipText: { fontSize: 15, fontWeight: '600', color: colors.text },
+  filterChipTextSelected: { color: '#FFFFFF' },
   wrap: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   field: { gap: 6 },
   label: { fontSize: 15, fontWeight: '600', color: colors.secondaryText },

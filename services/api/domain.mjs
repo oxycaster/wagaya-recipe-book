@@ -289,6 +289,62 @@ export function domain(db) {
           )
         ).rows
       }),
+    archivePage: (user, book, options = {}) =>
+      run(user, async (c) => {
+        await member(c, user, book)
+        const limit = z.number().int().min(1).max(100).parse(options.limit ?? 30)
+        const query = z.string().trim().max(300).parse(options.query ?? '')
+        const status = z
+          .enum(['all', 'current', 'active', 'attention', 'succeeded'])
+          .parse(options.status ?? 'all')
+        const beforeCreatedAt = options.beforeCreatedAt
+          ? z.iso.datetime().parse(options.beforeCreatedAt)
+          : null
+        const beforeId = options.beforeId ? uuid.parse(options.beforeId) : null
+        requireThat(
+          Boolean(beforeCreatedAt) === Boolean(beforeId),
+          400,
+          'INVALID_ARCHIVE_CURSOR',
+        )
+        const params = [user, book, query || null, status]
+        const base = `
+          FROM archives a
+          LEFT JOIN LATERAL (
+            SELECT * FROM jobs WHERE archive_id=a.id ORDER BY created_at DESC LIMIT 1
+          ) j ON true
+          WHERE a.user_id=$1 AND a.book_id=$2
+            AND ($3::text IS NULL OR strpos(lower(a.source_url),lower($3)) > 0)
+            AND (
+              $4='all'
+              OR ($4='current' AND (j.status IS NULL OR j.status <> 'succeeded'))
+              OR ($4='active' AND j.status IN ('queued','processing'))
+              OR ($4='attention' AND (j.status IS NULL OR j.status IN ('failed','needs_review')))
+              OR ($4='succeeded' AND j.status='succeeded')
+            )`
+        const total = Number(
+          (await c.query(`SELECT count(*)::int AS n ${base}`, params)).rows[0].n,
+        )
+        const rows = (
+          await c.query(
+            `SELECT a.id,a.source_url,a.created_at,j.status,j.error_code,j.id AS job_id,
+              j.phase,j.processed_chunks,j.total_chunks,j.reserved_credits,j.consumed_credits
+             ${base}
+             AND ($5::timestamptz IS NULL OR (a.created_at,a.id) < ($5::timestamptz,$6::uuid))
+             ORDER BY a.created_at DESC,a.id DESC LIMIT $7`,
+            [...params, beforeCreatedAt, beforeId, limit + 1],
+          )
+        ).rows
+        const items = rows.slice(0, limit)
+        const last = items.at(-1)
+        return {
+          items,
+          total,
+          nextCursor:
+            rows.length > limit && last
+              ? { createdAt: new Date(last.created_at).toISOString(), id: last.id }
+              : null,
+        }
+      }),
     createImportQuote: (user, book, archive, estimate) =>
       run(user, async (c) => {
         await member(c, user, book, ['owner', 'editor'])

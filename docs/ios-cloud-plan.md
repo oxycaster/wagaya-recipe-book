@@ -1,6 +1,6 @@
 # iOS・クラウド版 実装計画
 
-作成: 2026-09-06 / 更新: 2026-09-10 / 状態: P1〜P4のローカル実装・検証済み。内部TestFlight build 3とproduction build 5を配信済み。本番API/worker、HTTPS、DNS、Clerk production domain、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18、非公開prod S3、法務・サポートページの初期受入は完了。EAS production環境の必須8項目も登録済み。production build 5はiPhoneへインストール・起動済み。実機で判明したS3認証情報未注入は修正・本番配備し、コンテナからS3 put/get/deleteを確認済み。App Store Connectの2商品は不足していた審査画像と10回商品の日本配信設定を補い、RevenueCatで両方ともReady to Submit。実OpenAI・Sandbox購入・本番でのカード化完了は未確認。取り込み権は10回150円、50回600円で開始する。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
+作成: 2026-09-06 / 更新: 2026-09-11 / 状態: P1〜P4のローカル実装・検証済み。内部TestFlight build 3とproduction build 5を配信済み。本番API/worker、HTTPS、DNS、Clerk production domain、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18、非公開prod S3、法務・サポートページの初期受入は完了。EAS production環境の必須8項目も登録済み。production build 5はiPhoneへインストール・起動済み。実機で判明したS3認証情報未注入は修正・本番配備し、コンテナからS3 put/get/deleteを確認済み。App Store Connectの2商品は不足していた審査画像と10回商品の日本配信設定を補い、RevenueCatで両方ともReady to Submit。実OpenAI・Sandbox購入・本番でのカード化完了は未確認。取り込み権は10回150円、50回600円で開始する。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
 
@@ -32,6 +32,8 @@ lyrical-library の Expo 55 / React Native / EAS 構成を参考に、本リポ�
 メールOTPログイン、レシピ帖作成/切替/名前変更、参加者の招待/参加/削除、URLまたはHTML保存、取り込み費用見積もり/同意/進捗/再試行、画像付きカード一覧/詳細/共有メモ編集、献立日付/人数/残り物編集、残高/購入、サインアウト、アカウント削除。レシピ帖名の変更はownerだけに許可する。画像が保存できないレシピには分類別のアートワークを表示する。クライアント指定の所有者・モデル単価・権利数は採用しない。献立更新はversion比較で競合を検知する。
 
 iOSの初期表示は本日の献立とし、献立・レシピ・取り込み・共有・設定はSF Symbols付きの下部タブで移動する。現在のレシピ帖は画面上部に名前を表示し、複数ある場合だけ名前からチェック付きの選択シートを開いて切り替える。レシピ帖を横並びのボタン列にはしない。画面はライト/ダーク外観、Dynamic Type、Safe Areaへ追従し、タブはコンテンツの有無にかかわらず表示を維持する。
+
+取り込み件数が増えても入力画面を圧迫しないよう、「取り込み」直下は新規保存と未処理・処理中・要対応の項目に限定する。完了済みを含む原本一覧は同タブから開く階層画面「取り込み履歴」に分離し、URL検索、状態絞り込み、カーソル方式の追加読み込み、HTML原本の共有を提供する。履歴を第6の最上位タブにはしない。
 
 ## セキュリティと運用
 

@@ -160,6 +160,46 @@ test('HTML is private to its creator even for another owner/editor', async () =>
   await assert.rejects(svc.archive(b, a.id), { code: 'ARCHIVE_NOT_FOUND' })
   assert.deepEqual(await svc.archives(b, book), [])
 })
+test('archive history is searchable and cursor-paginated without exposing another creator', async () => {
+  const { user, book } = await setup(),
+    editor = await actor()
+  const invitation = await svc.invite(user, book, {
+    email: `${editor}@example.com`,
+    role: 'editor',
+  })
+  await svc.acceptInvite(editor, invitation.token)
+  for (let i = 0; i < 35; i += 1)
+    await svc.addArchive(user, book, {
+      id: randomUUID(),
+      object_key: randomUUID(),
+      source_url: `https://example.com/recipes/${String(i).padStart(2, '0')}`,
+      sha256: hash(randomUUID()),
+    })
+  const first = await svc.archivePage(user, book, { limit: 30 })
+  assert.equal(first.total, 35)
+  assert.equal(first.items.length, 30)
+  assert.ok(first.nextCursor)
+  const second = await svc.archivePage(user, book, {
+    limit: 30,
+    beforeCreatedAt: first.nextCursor.createdAt,
+    beforeId: first.nextCursor.id,
+  })
+  assert.equal(second.items.length, 5)
+  assert.equal(second.nextCursor, null)
+  assert.equal(
+    new Set([...first.items, ...second.items].map((item) => item.id)).size,
+    35,
+  )
+  const searched = await svc.archivePage(user, book, { query: '/07' })
+  assert.equal(searched.total, 1)
+  assert.match(searched.items[0].source_url, /\/07$/)
+  assert.equal(
+    (await svc.archivePage(user, book, { status: 'attention' })).total,
+    35,
+  )
+  assert.equal((await svc.archivePage(user, book, { status: 'active' })).total, 0)
+  assert.equal((await svc.archivePage(editor, book)).total, 0)
+})
 test('saved source image follows the card and is readable by family members', async () => {
   const { user, book } = await setup(),
     viewer = await actor(),
@@ -664,6 +704,23 @@ test('HTTP requires auth and webhook secret, validates IDs, uploads without publ
     })
     assert.equal(response.status, 201)
     const a = await response.json()
+    const historyResponse = await fetch(
+      `${url}/v1/books/${book}/archive-history?limit=1&query=example.com`,
+      { headers: { Authorization: `Bearer ${user}` } },
+    )
+    assert.equal(historyResponse.status, 200)
+    const history = await historyResponse.json()
+    assert.equal(history.total, 1)
+    assert.equal(history.items[0].id, a.id)
+    assert.equal(history.nextCursor, null)
+    assert.equal(
+      (
+        await fetch(`${url}/v1/books/${book}/archive-history?cursor=broken`, {
+          headers: { Authorization: `Bearer ${user}` },
+        })
+      ).status,
+      400,
+    )
     const raw = await fetch(`${url}/v1/archives/${a.id}/html`, {
       headers: { Authorization: `Bearer ${user}` },
     })

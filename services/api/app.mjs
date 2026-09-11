@@ -137,6 +137,41 @@ export function createApp({
   app.get('/v1/books/:book/archives', async (req, res) =>
     res.json(await service.archives(user(req), req.params.book)),
   )
+  app.get('/v1/books/:book/archive-history', async (req, res) => {
+    const input = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(30),
+        query: z.string().max(300).default(''),
+        status: z
+          .enum(['all', 'current', 'active', 'attention', 'succeeded'])
+          .default('all'),
+        cursor: z.string().max(1000).optional(),
+      })
+      .parse(req.query)
+    let cursor = null
+    if (input.cursor) {
+      try {
+        cursor = z
+          .object({ createdAt: z.iso.datetime(), id: z.uuid() })
+          .parse(JSON.parse(Buffer.from(input.cursor, 'base64url').toString()))
+      } catch {
+        throw new Fault(400, 'INVALID_ARCHIVE_CURSOR')
+      }
+    }
+    const page = await service.archivePage(user(req), req.params.book, {
+      limit: input.limit,
+      query: input.query,
+      status: input.status,
+      beforeCreatedAt: cursor?.createdAt,
+      beforeId: cursor?.id,
+    })
+    res.json({
+      ...page,
+      nextCursor: page.nextCursor
+        ? Buffer.from(JSON.stringify(page.nextCursor)).toString('base64url')
+        : null,
+    })
+  })
   app.post(
     '/v1/books/:book/archives',
     rateLimit({ windowMs: 60000, limit: 10, keyGenerator: (req) => user(req) }),

@@ -24,6 +24,7 @@ export type Recipe = {
 export type Archive = {
   id: string
   source_url: string
+  created_at: string
   status:
     | null
     | 'queued'
@@ -37,6 +38,11 @@ export type Archive = {
   total_chunks?: number
   reserved_credits?: number
   consumed_credits?: number
+}
+export type ArchivePage = {
+  items: Archive[]
+  total: number
+  nextCursor: string | null
 }
 export type ImportQuote = {
   quoteId: string
