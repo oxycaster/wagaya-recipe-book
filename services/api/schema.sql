@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS invites (
 CREATE TABLE IF NOT EXISTS archives (
  id uuid PRIMARY KEY, user_id text REFERENCES users(id), book_id uuid REFERENCES books(id) ON DELETE CASCADE,
  object_key text UNIQUE NOT NULL, image_key text UNIQUE, image_content_type text,
- source_url text NOT NULL, sha256 text NOT NULL,
+ source_url text NOT NULL, sha256 text NOT NULL, dismissed_at timestamptz,
  created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(user_id,book_id,sha256)
 );
 CREATE TABLE IF NOT EXISTS jobs (
@@ -84,6 +84,7 @@ REVOKE ALL ON SCHEMA recipe_cloud FROM PUBLIC;
 -- Safe when upgrading a database created by an earlier app build.
 ALTER TABLE archives ADD COLUMN IF NOT EXISTS image_key text UNIQUE;
 ALTER TABLE archives ADD COLUMN IF NOT EXISTS image_content_type text;
+ALTER TABLE archives ADD COLUMN IF NOT EXISTS dismissed_at timestamptz;
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS image_key text UNIQUE;
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS image_content_type text;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS quote_id uuid;

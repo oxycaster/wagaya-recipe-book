@@ -1532,6 +1532,17 @@ function Imports({
               key={a.id}
               label={a.status ? labels[a.status] : '保存済み・未取り込み'}
               onShare={() => void run(() => shareOriginal(a))}
+              onRetry={
+                book.role !== 'viewer' && a.dismissed_at && (a.status === 'needs_review' || a.status === 'failed')
+                  ? () => {
+                      if (!consent) {
+                        notify('取り込み画面に戻り、OpenAIへの送信に同意してから再試行してください。')
+                        return
+                      }
+                      start(a)
+                    }
+                  : undefined
+              }
             />
           ))
         )}
@@ -1661,7 +1672,7 @@ function Imports({
           )}
           {(a.status === 'needs_review' || a.status === 'failed') && (
             <Note>
-              原本に材料と作り方が揃っているか確認してください。
+              レシピを判定できませんでした。HTML原本の材料と作り方を確認できます。同じ内容の再試行では結果が変わらない場合があります。
             </Note>
           )}
           {!['queued', 'processing', 'succeeded'].includes(a.status || '') &&
@@ -1672,6 +1683,22 @@ function Imports({
                 }
                 disabled={busy || !consent}
                 onPress={() => start(a)}
+              />
+            )}
+          {(a.status === 'needs_review' || a.status === 'failed') &&
+            book.role !== 'viewer' && (
+              <Button
+                secondary
+                label="今回は見送る"
+                disabled={busy}
+                onPress={() =>
+                  void run(async () => {
+                    await api(`/books/${book.id}/archives/${a.id}/dismiss`, 'POST')
+                    await load()
+                    if (showHistory) await loadHistory(false)
+                    notify('原本を残して取り込み一覧から外しました。履歴から確認・再試行できます。')
+                  })
+                }
               />
             )}
         </View>
@@ -1697,11 +1724,13 @@ function ArchiveHistoryRow({
   label,
   busy,
   onShare,
+  onRetry,
 }: {
   archive: Archive
   label: string
   busy: boolean
   onShare: () => void
+  onRetry?: () => void
 }) {
   const savedAt = new Date(archive.created_at)
   const date = Number.isNaN(savedAt.getTime())
@@ -1726,6 +1755,14 @@ function ArchiveHistoryRow({
         disabled={busy}
         onPress={onShare}
       />
+      {onRetry && (
+        <Button
+          secondary
+          label="費用を確認して再試行"
+          disabled={busy}
+          onPress={onRetry}
+        />
+      )}
     </View>
   )
 }

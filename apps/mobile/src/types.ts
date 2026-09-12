@@ -25,6 +25,7 @@ export type Archive = {
   id: string
   source_url: string
   created_at: string
+  dismissed_at?: string | null
   status:
     | null
     | 'queued'

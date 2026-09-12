@@ -137,6 +137,10 @@ export function createApp({
   app.get('/v1/books/:book/archives', async (req, res) =>
     res.json(await service.archives(user(req), req.params.book)),
   )
+  app.post('/v1/books/:book/archives/:id/dismiss', async (req, res) => {
+    await service.dismissArchive(user(req), req.params.book, req.params.id)
+    res.sendStatus(204)
+  })
   app.get('/v1/books/:book/archive-history', async (req, res) => {
     const input = z
       .object({
