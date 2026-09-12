@@ -75,3 +75,20 @@ export function completeRecipeJsonLd(html) {
   }
   return groups.size === 1 ? [...groups.values()][0] : null
 }
+
+export function pageHeadingHint(html) {
+  const $ = cheerio.load(html)
+  const clean = (value) => value.replace(/\s+/g, ' ').trim()
+  return clean($('h1').first().text()) || clean($('title').first().text())
+}
+
+export function visiblePageText(html) {
+  const $ = cheerio.load(html)
+  const body = $('body').clone()
+  // This is extra context for the model. The original HTML is still scanned
+  // and stored unchanged, including any content omitted from this text view.
+  body.find('script, style, noscript, svg, template').remove()
+  body.find('li, tr, h1, h2, h3, h4, h5, h6, p, br').before('\n')
+  return body.text().replace(/\r/g, '').replace(/[ \t]+/g, ' ')
+    .replace(/ *\n+ */g, '\n').trim()
+}

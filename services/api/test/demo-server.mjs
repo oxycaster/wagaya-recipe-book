@@ -8,9 +8,14 @@ import { authenticator } from '../auth.mjs'
 import { domain, hash, Fault } from '../domain.mjs'
 import { billingEvent } from '../billing.mjs'
 import { processOne } from '../jobs.mjs'
+import {
+  MAX_SIMULATOR_MODEL_CALLS,
+  simulatorExtraction,
+} from './demo-extraction.mjs'
 
 if (process.env.NODE_ENV === 'production')
   throw new Error('Demo cannot run in production')
+const realExtraction = simulatorExtraction(process.env)
 const pg = new PGlite()
 await pg.exec(await readFile(new URL('../schema.sql', import.meta.url), 'utf8'))
 const db = {
@@ -20,8 +25,6 @@ const db = {
   svc = domain(db)
 const id = 'user_localfixture',
   email = 'demo@example.test'
-await svc.identity(id, email)
-const book = await svc.createBook(id, 'わが家の一冊')
 const billing = {
   appId: 'local-demo',
   environments: ['SANDBOX'],
@@ -45,7 +48,6 @@ const grantDemoCredits = (user) => {
     billing,
   )
 }
-await grantDemoCredits(id)
 const objects = new Map(),
   store = {
     put: async (k, v) => objects.set(k, v),
@@ -104,20 +106,25 @@ const cards = [
     tags: [],
   },
 ]
-for (const card of cards) {
-  const archive = await svc.addArchive(id, book.id, {
-    id: randomUUID(),
-    object_key: randomUUID(),
-    source_url: 'https://example.com/demo',
-    sha256: hash(card.title),
-  })
-  objects.set(archive.object_key, `<h1>${card.title}</h1>`)
-  const quote = await svc.createImportQuote(id, book.id, archive.id, {
-    estimatedInputTokens: 20,
-    maximumCredits: 1,
-  })
-  await svc.enqueue(id, book.id, archive.id, randomUUID(), quote.quoteId, 1)
-  await processOne(db, store, async () => ({ card, model: 'local-fixture' }))
+if (!realExtraction.enabled) {
+  await svc.identity(id, email)
+  const book = await svc.createBook(id, 'わが家の一冊')
+  await grantDemoCredits(id)
+  for (const card of cards) {
+    const archive = await svc.addArchive(id, book.id, {
+      id: randomUUID(),
+      object_key: randomUUID(),
+      source_url: 'https://example.com/demo',
+      sha256: hash(card.title),
+    })
+    objects.set(archive.object_key, `<h1>${card.title}</h1>`)
+    const quote = await svc.createImportQuote(id, book.id, archive.id, {
+      estimatedInputTokens: 20,
+      maximumCredits: 1,
+    })
+    await svc.enqueue(id, book.id, archive.id, randomUUID(), quote.quoteId, 1)
+    await processOne(db, store, async () => ({ card, model: 'local-fixture' }))
+  }
 }
 const secret = 'local-simulator-fixture-only-not-a-real-token'
 const authUser = {
@@ -160,43 +167,57 @@ const authenticate = clerkAuthenticate
       if (token !== secret) throw new Fault(401, 'INVALID_SESSION')
       return { id, email }
     }
-app.use('/auth/v1', express.json())
-app.post('/auth/v1/otp', (_req, res) => res.json({}))
-app.post('/auth/v1/verify', (req, res) =>
-  req.body.token === '123456' && req.body.email === email
-    ? res.json(session())
-    : res.status(400).json({ message: 'Use demo@example.test / 123456' }),
-)
-app.post('/auth/v1/token', (_req, res) => res.json(session()))
-app.post('/auth/v1/logout', (_req, res) => res.sendStatus(204))
-app.get('/auth/v1/user', (_req, res) => res.json(authUser))
+if (!realExtraction.enabled) {
+  app.use('/auth/v1', express.json())
+  app.post('/auth/v1/otp', (_req, res) => res.json({}))
+  app.post('/auth/v1/verify', (req, res) =>
+    req.body.token === '123456' && req.body.email === email
+      ? res.json(session())
+      : res.status(400).json({ message: 'Use demo@example.test / 123456' }),
+  )
+  app.post('/auth/v1/token', (_req, res) => res.json(session()))
+  app.post('/auth/v1/logout', (_req, res) => res.sendStatus(204))
+  app.get('/auth/v1/user', (_req, res) => res.json(authUser))
+}
 app.use(
   createApp({
     db,
     store,
     authenticate,
     config: { webhookSecret: secret, billing },
-    fetchPage: async (url) => ({ url, html: '<h1>デモのレシピ</h1>' }),
+    fetchPage: realExtraction.enabled
+      ? realExtraction.fetchPage
+      : async (url) => ({ url, html: '<h1>デモのレシピ</h1>' }),
   }),
 )
-const port = Number(process.env.DEMO_PORT || 4329)
+const port = realExtraction.enabled
+  ? realExtraction.port
+  : Number(process.env.DEMO_PORT || 4329)
 const server = app.listen(port, '127.0.0.1', () =>
   console.log(
-    `LOCAL FIXTURE http://127.0.0.1:${port} — demo@example.test / 123456`,
+    realExtraction.enabled
+      ? `LOCAL REAL EXTRACTION http://127.0.0.1:${port} — OpenAI calls are billed; max ${MAX_SIMULATOR_MODEL_CALLS} model calls per process`
+      : `LOCAL FIXTURE http://127.0.0.1:${port} — demo@example.test / 123456`,
   ),
 )
 const interval = setInterval(
-  () =>
-    void processOne(db, store, async () => ({
-      card: cards[0],
-      model: 'local-fixture',
-    })).catch(() => {}),
+  () => void processOne(
+    db,
+    store,
+    realExtraction.enabled
+      ? realExtraction.extract
+      : async () => ({ card: cards[0], model: 'local-fixture' }),
+  ).catch((error) => console.error('simulator_worker_error', error.code || error.name)),
   2000,
 )
-process.on('SIGTERM', () => {
-  clearInterval(interval)
-  server.close(async () => {
-    await pg.close()
-    process.exit(0)
+let stopping = false
+for (const signal of ['SIGINT', 'SIGTERM'])
+  process.on(signal, () => {
+    if (stopping) return
+    stopping = true
+    clearInterval(interval)
+    server.close(async () => {
+      await pg.close()
+      process.exit(0)
+    })
   })
-})

@@ -290,6 +290,19 @@ export function domain(db) {
           )
         ).rows
       }),
+    dismissArchive: (user, book, archive) =>
+      run(user, async (c) => {
+        await member(c, user, book, ['owner', 'editor'])
+        const updated = await c.query(
+          `UPDATE archives a SET dismissed_at=now()
+           WHERE a.id=$1 AND a.user_id=$2 AND a.book_id=$3
+             AND EXISTS (SELECT 1 FROM jobs j WHERE j.archive_id=a.id AND j.status IN ('failed','needs_review'))
+             AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.archive_id=a.id AND j.status IN ('queued','processing','succeeded'))
+           RETURNING a.id`,
+          [archive, user, book],
+        )
+        requireThat(updated.rows.length, 409, 'ARCHIVE_NOT_DISMISSIBLE')
+      }),
     archivePage: (user, book, options = {}) =>
       run(user, async (c) => {
         await member(c, user, book)
@@ -317,7 +330,7 @@ export function domain(db) {
             AND ($3::text IS NULL OR strpos(lower(a.source_url),lower($3)) > 0)
             AND (
               $4='all'
-              OR ($4='current' AND (j.status IS NULL OR j.status <> 'succeeded'))
+              OR ($4='current' AND a.dismissed_at IS NULL AND (j.status IS NULL OR j.status <> 'succeeded'))
               OR ($4='active' AND j.status IN ('queued','processing'))
               OR ($4='attention' AND (j.status IS NULL OR j.status IN ('failed','needs_review')))
               OR ($4='succeeded' AND j.status='succeeded')
@@ -327,7 +340,7 @@ export function domain(db) {
         )
         const rows = (
           await c.query(
-            `SELECT a.id,a.source_url,a.created_at,j.status,j.error_code,j.id AS job_id,
+            `SELECT a.id,a.source_url,a.created_at,a.dismissed_at,j.status,j.error_code,j.id AS job_id,
               j.phase,j.processed_chunks,j.total_chunks,j.reserved_credits,j.consumed_credits
              ${base}
              AND ($5::timestamptz IS NULL OR (a.created_at,a.id) < ($5::timestamptz,$6::uuid))
@@ -477,6 +490,7 @@ export function domain(db) {
           quote.id,
           job.id,
         ])
+        await c.query('UPDATE archives SET dismissed_at=NULL WHERE id=$1', [archive])
         return job
       }),
     wallet: (user) =>

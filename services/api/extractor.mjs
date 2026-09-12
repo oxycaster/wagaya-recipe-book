@@ -1,7 +1,7 @@
-import * as cheerio from 'cheerio'
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { cardSchema } from './domain.mjs'
+import { visiblePageText } from './recipe-source.mjs'
 import {
   creditsForUsage,
   estimateImport,
@@ -34,41 +34,16 @@ const scanSchema = z.object({
   needsPrevious: z.boolean(), needsNext: z.boolean(),
 }).strict()
 
-export function prepareHtml(html) {
-  const $ = cheerio.load(html)
-  const structured = $('script[type="application/ld+json"]')
-    .map((_, el) => $(el).text()).get().join('\n')
-  return { input: html, plain: $.text().replace(/\s+/g, ' ').trim(), structured, original: html }
-}
-
-export function validateExtraction(value, source) {
-  const result = resultSchema.parse(value)
-  if (!result.isRecipe || !result.recipe || !result.evidence.length) return null
-  const normalize = (s) => s.normalize('NFKC').replace(/\s+/g, '')
-  const haystack = normalize(source.original + ' ' + source.plain + ' ' + source.structured)
-  const coverage = (claim) => {
-    const normalized = normalize(claim)
-    if (haystack.includes(normalized)) return 1
-    if (normalized.length < 8) return 0
-    let matches = 0
-    const total = normalized.length - 3
-    for (let index = 0; index < total; index++)
-      if (haystack.includes(normalized.slice(index, index + 4))) matches++
-    return matches / total
-  }
-  const evidenceCoverage = result.evidence.map(coverage)
+export function validateExtraction(value) {
+  const parsed = resultSchema.safeParse(value)
+  if (!parsed.success) return null
+  const { isRecipe, recipe } = parsed.data
+  if (!isRecipe || !recipe) return null
   if (
-    evidenceCoverage.some((score) => score < 0.5) ||
-    evidenceCoverage.filter((score) => score >= 0.8).length <
-      Math.min(2, evidenceCoverage.length)
-  )
-    return null
-  if (!haystack.includes(normalize(result.recipe.title))) return null
-  if (!result.recipe.ingredients.every((i) => haystack.includes(normalize(i.name)))) return null
-  if (!result.recipe.ingredients.every((i) => !i.amount || haystack.includes(normalize(i.amount)))) return null
-  if (!result.recipe.ingredients.every((i) => !i.group || haystack.includes(normalize(i.group)))) return null
-  if (!result.recipe.steps.every((step) => coverage(step) >= 0.85)) return null
-  return result.recipe
+    recipe.ingredients.some((ingredient) => !ingredient.name.trim()) ||
+    recipe.steps.some((step) => !step.trim())
+  ) return null
+  return recipe
 }
 
 const outputText = (body) => {
@@ -92,23 +67,23 @@ const emptyScan = { classification: 'uncertain', candidateId: null, evidence: []
 export function extractor(env, fetcher = fetch) {
   const models = importCostConfig(env)
   return async (html, checkpoint = {}) => {
-    const source = prepareHtml(html)
     const estimate = estimateImport(html, env)
     const scans = [], calls = []
     await checkpoint.progress?.('scan', 0, estimate.chunks.length)
     for (let index = 0; index < estimate.chunks.length; index++) {
       const chunk = estimate.chunks[index]
       const scanInput = estimate.structuredRecipe
-        ? `Primary Recipe JSON-LD:\n${estimate.structuredRecipe}\n\nFragment ${index + 1} of ${estimate.chunks.length}:\n${chunk}`
-        : `Fragment ${index + 1} of ${estimate.chunks.length}:\n${chunk}`
-      const hash = chunkHash(scanInput)
+        ? `主レシピのRecipe JSON-LD:\n${estimate.structuredRecipe}\n\nHTML断片 ${index + 1}/${estimate.chunks.length}:\n${chunk}`
+        : `${estimate.pageHint}HTML断片 ${index + 1}/${estimate.chunks.length}:\n${chunk}`
+      const scanInstructions = estimate.structuredRecipe
+        ? TARGETED_SCAN_INSTRUCTIONS
+        : SCAN_INSTRUCTIONS
+      const hash = chunkHash(`scan-v5\n${scanInstructions}\n${scanInput}`)
       let saved = await checkpoint.load?.('scan', index, hash)
       if (!saved) {
         const call = await responseCall(env, fetcher, {
           model: models.scanModel, max_output_tokens: MAX_SCAN_OUTPUT_TOKENS,
-          instructions: estimate.structuredRecipe
-            ? TARGETED_SCAN_INSTRUCTIONS
-            : SCAN_INSTRUCTIONS,
+          instructions: scanInstructions,
           input: scanInput,
           text: { format: { type: 'json_schema', name: 'recipe_fragment_scan', strict: true, schema: z.toJSONSchema(scanSchema, { target: 'draft-7' }) } },
         })
@@ -120,29 +95,33 @@ export function extractor(env, fetcher = fetch) {
       calls.push({ phase: 'scan', usage: saved.usage })
       await checkpoint.progress?.('scan', index + 1, estimate.chunks.length)
     }
-    const positive = scans.map((scan, index) => ({ ...scan, index })).filter((scan) => scan.classification !== 'none')
-    if (!positive.length || positive.some((scan) => ['multiple', 'uncertain'].includes(scan.classification)))
+    const positive = scans.map((scan, index) => ({ ...scan, index })).filter((scan) => scan.classification === 'single')
+    if (!estimate.structuredRecipe && (!positive.length || scans.some((scan) => scan.classification === 'multiple')))
       return { card: null, model: models.scanModel, usage: { calls }, calls }
-    const candidateIds = new Set(positive.map((scan) => scan.candidateId).filter(Boolean))
-    if (candidateIds.size > 1) return { card: null, model: models.scanModel, usage: { calls }, calls }
+    const candidateIds = new Set(positive.map((scan) => scan.candidateId?.normalize('NFKC').replace(/\s+/g, '').toLowerCase()).filter(Boolean))
+    if (!estimate.structuredRecipe && candidateIds.size > 1) return { card: null, model: models.scanModel, usage: { calls }, calls }
     const selected = new Set(positive.map((scan) => scan.index))
     for (const scan of positive) {
       if (scan.needsPrevious && scan.index > 0) selected.add(scan.index - 1)
       if (scan.needsNext && scan.index + 1 < estimate.chunks.length) selected.add(scan.index + 1)
     }
     const ordered = [...selected].sort((a, b) => a - b)
-    if (ordered.some((value, i) => i && value !== ordered[i - 1] + 1))
-      return { card: null, model: models.scanModel, usage: { calls }, calls }
-    const candidateHtml = [
-      estimate.structuredRecipe
-        ? `Primary Recipe JSON-LD:\n${estimate.structuredRecipe}`
-        : '',
-      ordered.map((i) => estimate.chunks[i]).join(''),
-    ].filter(Boolean).join('\n\nSource HTML context:\n')
+    const primary = estimate.structuredRecipe
+      ? `主レシピのRecipe JSON-LD:\n${estimate.structuredRecipe}`
+      : ''
+    const visible = estimate.structuredRecipe
+      ? `原本HTMLの可視テキスト（材料の見出しと並びも確認）:\n${visiblePageText(html)}`
+      : ''
+    const related = ordered.map((i) => `原本HTMLの関連断片 ${i + 1}:\n${estimate.chunks[i]}`).join('\n\n')
+    let candidateHtml = [primary, visible, related].filter(Boolean).join('\n\n')
+    if (estimate.structuredRecipe && countTokens(candidateHtml) > MAX_FINAL_INPUT_TOKENS)
+      candidateHtml = [primary, visible].filter(Boolean).join('\n\n')
+    if (estimate.structuredRecipe && countTokens(candidateHtml) > MAX_FINAL_INPUT_TOKENS)
+      candidateHtml = primary
     if (countTokens(candidateHtml) > MAX_FINAL_INPUT_TOKENS)
       return { card: null, model: models.scanModel, usage: { calls }, calls }
     await checkpoint.progress?.('extract', estimate.chunks.length, estimate.chunks.length)
-    const hash = chunkHash(candidateHtml)
+    const hash = chunkHash(`extract-v5\n${EXTRACTION_INSTRUCTIONS}\n${candidateHtml}`)
     let saved = await checkpoint.load?.('extract', 0, hash)
     if (!saved) {
       const call = await responseCall(env, fetcher, {
@@ -155,7 +134,7 @@ export function extractor(env, fetcher = fetch) {
       await checkpoint.save?.('extract', 0, hash, saved)
     }
     calls.push({ phase: 'extract', usage: saved.usage })
-    const card = saved.result ? validateExtraction(saved.result, source) : null
+    const card = saved.result ? validateExtraction(saved.result) : null
     return { card, model: saved.model, usage: { calls }, calls, creditsUsed: card ? creditsForUsage(calls, env) : 0 }
   }
 }

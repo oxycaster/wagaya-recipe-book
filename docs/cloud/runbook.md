@@ -40,6 +40,19 @@ mise exec -- pnpm exec expo run:ios --no-bundler
 
 開発クライアントの接続先は `http://127.0.0.1:8093`。自分のメールアドレスへ届くClerkの確認コードでログインする。ローカルfixtureは認証済みユーザーへ起動中一度だけテスト用取り込み権10回分を自動付与するため、StoreKit購入なしで取り込みを確認できる。APIデータとテスト用権利はプロセス終了時に消え、実課金・S3・OpenAIは実行しない。development instanceの成功をproduction instanceの検証済みとは扱わない。終了時は各プロセスをCtrl-Cで停止する。
 
+### Simulatorから実URL・実OpenAIを試す
+
+上記fixtureを停止し、`services/api/.env`（Git管理外）へdevelopment Clerkの `CLERK_ISSUER_URL`、サーバー専用の `OPENAI_API_KEY`、`OPENAI_MODEL` を設定する。値をコマンド行やアプリの `EXPO_PUBLIC_*` に書かない。`OPENAI_SCAN_MODEL` は必要な場合だけ指定する。API側は通常と同じ公開IP・リダイレクト・HTML容量検査を使い、原本とカードはこのプロセスのメモリにだけ置く。
+
+```sh
+# services/api。旧TestFlight用の4329では起動できない
+SIMULATOR_REAL_EXTRACTION=1 DEMO_PORT=4330 mise exec -- node --env-file-if-exists=.env test/demo-server.mjs
+# apps/mobile。development Clerk publishable keyはGit管理外の apps/mobile/.env に設定する
+NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4330 mise exec -- pnpm exec expo start --dev-client --localhost --port 8093
+```
+
+Simulatorのdevelopment buildを開いてClerkでログインし、レシピ帖を作成してURLを保存する。保存時に実HTMLを取得し、同意・最大権数の確認後にサーバー側からOpenAIへ送信する。初期の固定カードは生成せず、成功したカードだけ表示する。取り込み権10回分はあくまでテスト用で、OpenAI側の実料金は発生する。1プロセス最大30回のモデル呼び出しで停止し、超過時のジョブは失敗・権利返還となる。S3・RevenueCat・本番DBは使わず、終了時にテストカードと原本は消える。実OpenAIを通したローカル検証と本番配備の受入は別に記録する。
+
 `expo run:ios --no-bundler` が別の8081ポートを開いた場合は、開発クライアントで上記8093を選ぶ。localhostがIPv6のみでlistenされる環境では上記NODE_OPTIONSを使う（端末が要求する127.0.0.1と一致させる）。
 
 `@clerk/expo` を追加・更新した後は、ignoredのnative生成物にClerk pod/packageを反映するため `pnpm exec expo prebuild --platform ios --clean` を実行してからnative buildする。現在の生成結果はiOS deployment target 17.0。React本体と異なるpatch版の `react-dom` が解決されると起動時に互換性エラーになるため、`react` と `react-dom` は同じ19.2.0へ固定する。
