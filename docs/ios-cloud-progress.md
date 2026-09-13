@@ -1,5 +1,7 @@
 # 進捗・引き継ぎ
 
+- 2026-09-14 Issue #39 対応: 通常のレシピ画面からアーカイブ切り替えを撤去し、設定にレシピ帖ごとのアーカイブ済み一覧への入口を追加。編集権限がある参加者は一覧から直接解除でき、閲覧者には解除操作を表示しない。`rtk pnpm check`、`rtk pnpm export:ios`（apps/mobile）、`rtk git diff --check` は成功。実画面・実機、TestFlightと本番配備は未確認。次はSimulatorで設定→アーカイブ一覧→解除→通常一覧の往復を確認する。
+
 - 2026-09-14 Simulatorを実抽出専用へ変更: 4330番など4329番以外のローカルdemo APIは実URL取得とサーバー側OpenAI抽出を必須にし、`SIMULATOR_REAL_EXTRACTION=0` や必要なClerk/OpenAI設定が欠けた場合は起動拒否する。旧TestFlight用4329番のみ固定fixtureを維持。計画とrunbookを単一のSimulator実抽出手順へ更新した。`services/api` の `pnpm test` は40/40、`git diff --check` は成功。稼働していた4330番の固定fixtureを停止し、Git管理外の開発用設定で同じポートを実抽出モードとして起動。起動ログ `LOCAL REAL EXTRACTION`、API `/health`、Metro `/status`、iPhone 17eのレシピ帖作成画面を確認した。再起動で前プロセスの一時的な原本・カード・レシピ帖は消去された。実URL保存・OpenAI呼び出し・カード内容の検証は未実施。OpenAI料金は実際にカード化した際に発生する。
 
 - 2026-09-14 Simulator取り込み症状の原因調査: 現在の4330番は `SIMULATOR_REAL_EXTRACTION` 未指定の固定fixture。任意URLに同じ `<h1>デモのレシピ</h1>` を返すため、2件目以降は `sha256` 重複で既存原本へ統合され、未処理一覧が増えない。workerもURLと無関係に固定カード「なすと豚肉の味噌炒め」を返す。実URL抽出の不具合とは未判定。コード・API設定は変更していない。次に指定URLの実抽出を確認するなら、OpenAI料金とfixture API再起動による一時データ消去を了承のうえ、runbookの実抽出モードで別途起動する。
