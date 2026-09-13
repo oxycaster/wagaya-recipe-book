@@ -951,6 +951,29 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
     [selected, setSelected] = useState<Recipe | null>(null),
     [search, setSearch] = useState(''),
     [loading, setLoading] = useState(true)
+  const [addedToday, setAddedToday] = useState<string[]>([])
+  const addToday = (recipe: Recipe) =>
+    void run(async () => {
+      const day = localDay()
+      const path = `/books/${book.id}/plans/${day}`
+      const plan = await api<Plan>(path)
+      if (plan.items.some((item) => item.recipeId === recipe.id)) {
+        setAddedToday((ids) => [...ids, recipe.id])
+        notify('今日の献立に追加済みです。')
+        return
+      }
+      await api<Plan>(path, 'PUT', {
+        ...plan,
+        items: [...plan.items, {
+          id: Crypto.randomUUID(),
+          recipeId: recipe.id,
+          state: 'cook',
+          portions: recipe.card.servings || 2,
+        }],
+      })
+      setAddedToday((ids) => [...ids, recipe.id])
+      notify('今日の献立に追加しました。')
+    })
   const load = useCallback(async () => {
     const r = await api<Recipe[]>(`/books/${book.id}/recipes`)
     setRecipes(r)
@@ -975,6 +998,8 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
         editable={book.role !== 'viewer'}
         busy={busy}
         back={() => setSelected(null)}
+        onAddToday={book.role === 'viewer' ? undefined : () => addToday(selected)}
+        addedToday={addedToday.includes(selected.id)}
         save={async (card, memo) => {
           await run(async () => {
             await api(`/books/${book.id}/recipes/${selected.id}`, 'PUT', {
@@ -1015,9 +1040,9 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
         </View>
       ) : (
         filtered.map((r) => (
+          <View key={r.id}>
             <Pressable
               accessibilityRole="button"
-              key={r.id}
               onPress={() => setSelected(r)}
               style={styles.recipe}
             >
@@ -1037,6 +1062,15 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
                 )}
               </View>
             </Pressable>
+            {book.role !== 'viewer' && (
+              <Button
+                secondary
+                label={addedToday.includes(r.id) ? '今日の献立に追加済み' : '今日の献立に追加'}
+                disabled={busy || addedToday.includes(r.id)}
+                onPress={() => addToday(r)}
+              />
+            )}
+          </View>
           ))
       )}
     </>
@@ -1049,12 +1083,18 @@ function RecipeDetail({
   busy,
   back,
   save,
+  onAddToday,
+  addedToday = false,
+  backLabel = 'レシピ一覧に戻る',
 }: {
   recipe: Recipe
   editable: boolean
   busy: boolean
   back: () => void
   save: (c: Card, m: string) => Promise<void>
+  onAddToday?: () => void
+  addedToday?: boolean
+  backLabel?: string
 }) {
   const [edit, setEdit] = useState(false),
     [card, setCard] = useState<Card>(recipe.card),
@@ -1077,12 +1117,19 @@ function RecipeDetail({
   return (
     <>
       <Button
-        label="レシピ一覧に戻る"
+        label={backLabel}
         secondary
         disabled={busy}
         onPress={back}
       />
       {!edit && <RecipeArtwork recipe={recipe} />}
+      {onAddToday && !edit && (
+        <Button
+          label={addedToday ? '今日の献立に追加済み' : '今日の献立に追加'}
+          disabled={busy || addedToday}
+          onPress={onAddToday}
+        />
+      )}
       {edit ? (
         <>
           <Field
@@ -1771,7 +1818,8 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
   const [day, setDay] = useState(localDay()),
     [loadedDay, setLoadedDay] = useState(''),
     [plan, setPlan] = useState<Plan>({ items: [], version: 0 }),
-    [recipes, setRecipes] = useState<Recipe[]>([])
+    [recipes, setRecipes] = useState<Recipe[]>([]),
+    [selected, setSelected] = useState<Recipe | null>(null)
   const load = useCallback(
     async (d: string) => {
       const [p, r] = await Promise.all([
@@ -1808,7 +1856,12 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
           {plan.items.map((item) => (
             <View style={styles.panel} key={item.id}>
               {recipes.find((r) => r.id === item.recipeId) ? (
-                <View style={styles.mealHeading}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${recipes.find((r) => r.id === item.recipeId)!.card.title}のレシピカードを開く`}
+                  onPress={() => setSelected(recipes.find((r) => r.id === item.recipeId)!)}
+                  style={styles.mealHeading}
+                >
                   <RecipeArtwork
                     compact
                     recipe={recipes.find((r) => r.id === item.recipeId)!}
@@ -1816,7 +1869,8 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
                   <Text style={[styles.heading, { flex: 1 }]}>
                     {recipes.find((r) => r.id === item.recipeId)!.card.title}
                   </Text>
-                </View>
+                  <SymbolView name="chevron.right" size={16} tintColor={green} />
+                </Pressable>
               ) : (
                 <Text style={styles.heading}>レシピ</Text>
               )}
@@ -1918,6 +1972,29 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
           )}
         </>
       )}
+      <Modal
+        animationType="slide"
+        onDismiss={() => setSelected(null)}
+        onRequestClose={() => setSelected(null)}
+        presentationStyle="pageSheet"
+        visible={selected !== null}
+      >
+        <SafeAreaView style={styles.selectorSheet}>
+          <ScrollView contentContainerStyle={styles.content}>
+            {selected && (
+              <RecipeDetail
+                key={`${selected.id}:${selected.version}`}
+                recipe={selected}
+                editable={false}
+                busy={false}
+                back={() => setSelected(null)}
+                backLabel="献立に戻る"
+                save={async () => {}}
+              />
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </>
   )
 }
