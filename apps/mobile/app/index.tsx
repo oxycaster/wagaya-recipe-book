@@ -1427,6 +1427,7 @@ function Imports({
     [historyLoading, setHistoryLoading] = useState(false)
   const keys = useRef(new Map<string, string>())
   const previousStatuses = useRef('')
+  const historyTouch = useRef<{ x: number; y: number } | null>(null)
   const load = useCallback(async () => {
     const page = await api<ArchivePage>(
       `/books/${book.id}/archive-history?limit=10&status=current`,
@@ -1560,7 +1561,21 @@ function Imports({
   }
   if (showHistory)
     return (
-      <>
+      <View
+        onTouchStart={(event) => {
+          const { pageX, pageY } = event.nativeEvent
+          historyTouch.current = pageX <= 32 ? { x: pageX, y: pageY } : null
+        }}
+        onTouchEnd={(event) => {
+          const start = historyTouch.current
+          historyTouch.current = null
+          if (!start) return
+          const { pageX, pageY } = event.nativeEvent
+          if (pageX - start.x > 80 && Math.abs(pageY - start.y) < 50)
+            setShowHistory(false)
+        }}
+        onTouchCancel={() => { historyTouch.current = null }}
+      >
         <Pressable
           accessibilityLabel="取り込み画面に戻る"
           accessibilityRole="button"
@@ -1648,7 +1663,7 @@ function Imports({
             }
           />
         )}
-      </>
+      </View>
     )
   return (
     <>
