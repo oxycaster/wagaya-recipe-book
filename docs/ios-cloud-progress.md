@@ -1,5 +1,7 @@
 # 進捗・引き継ぎ
 
+- 2026-09-13 PR #37の競合解消: 最新 `origin/main` のPR #35・#36を取り込み、Issue #32とIssue #33の進捗記録を両方保持した。`pnpm --dir apps/mobile check`、`git diff --check origin/main...HEAD` は成功。GitHubでPR #37が `MERGEABLE` / `CLEAN` であることを確認。実画面操作とTestFlight・本番配備は引き続き未実施。
+
 - 2026-09-13 Issue #33: 取り込み画面の事前同意トグルと「カード化の確認」セクションを削除。保存済みページと履歴からの再試行は、ボタン押下時に見積もりを取得し、OpenAIへのHTML送信と最大使用権数を示すダイアログで確認する。承認時のみ `consent: true` を送る。`pnpm --dir apps/mobile check` と `git diff --check` は成功。iPhone 17e Simulatorは起動しているが、この作業ツリーにAPIの`.env`と依存パッケージがなく、API・Metroも停止していたため実画面操作は未確認。次は開発環境を準備して保存済みページと履歴の両経路でキャンセル・承認を確認する。TestFlight・本番配備は未実施。
 - 2026-09-13 Issue #32 対応: レシピ一覧から開く詳細を画面内の切替から iOS page sheet に変更。下スワイプまたは既存ボタンで閉じると、検索語と一覧表示を維持して戻る。`rtk pnpm --dir apps/mobile check` と `rtk git diff --check` は成功。シミュレーターは起動中だが、この変更を反映した画面でのスワイプ確認と実機・配布版検証は未実施。次は開発ビルドで一覧→カード→下スワイプの往復、編集途中の閉じ方を確認する。
 
