@@ -684,6 +684,7 @@ function Home({
   const [books, setBooks] = useState<Book[]>([]),
     [bookId, setBookId] = useState(''),
     [tab, setTab] = useState<TabName>('献立'),
+    [archivedOpen, setArchivedOpen] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [newName, setNewName] = useState(''),
@@ -752,6 +753,7 @@ function Home({
           disabled={busy}
           onSelect={(nextBookId) => {
             setBookId(nextBookId)
+            setArchivedOpen(false)
             setMessage('')
           }}
         />
@@ -760,7 +762,7 @@ function Home({
           maxFontSizeMultiplier={1.6}
           style={styles.title}
         >
-          {tab}
+          {archivedOpen && tab === '設定' ? 'アーカイブ済み' : tab}
         </Text>
       </View>
       {!!message && (
@@ -846,7 +848,16 @@ function Home({
             />
           </View>
         )}
-        {book && (
+        {archivedOpen && tab === '設定' && book && (
+          <>
+            <Pressable accessibilityRole="button" onPress={() => setArchivedOpen(false)} style={styles.backLink}>
+              <SymbolView name="chevron.left" size={17} tintColor={green} />
+              <Text style={styles.backLinkText}>設定に戻る</Text>
+            </Pressable>
+            <RecipeList key={`${book.id}:archived`} book={book} archived busy={busy} run={run} refresh={refresh} notify={setMessage} />
+          </>
+        )}
+        {book && !(archivedOpen && tab === '設定') && (
           <BookContent
             key={`${book.id}:${tab}`}
             book={book}
@@ -857,9 +868,10 @@ function Home({
             run={run}
             refresh={refresh}
             notify={setMessage}
+            onOpenArchive={() => setArchivedOpen(true)}
           />
         )}
-        {tab === '設定' && (
+        {tab === '設定' && !archivedOpen && (
           <Settings
             userId={userId}
             email={email}
@@ -876,6 +888,7 @@ function Home({
         selected={tab}
         onSelect={(next) => {
           if (!busy) {
+            setArchivedOpen(false)
             setTab(next)
             setMessage('')
           }
@@ -896,12 +909,14 @@ function BookContent({
   tab,
   userId,
   wallet,
+  onOpenArchive,
   ...actions
 }: {
   book: Book
   tab: TabName
   userId: string
   wallet: Wallet | null
+  onOpenArchive: () => void
 } & Actions) {
   if (tab === 'レシピ') return <RecipeList book={book} {...actions} />
   if (tab === '取り込み')
@@ -909,7 +924,7 @@ function BookContent({
   if (tab === '献立') return <MealPlan book={book} {...actions} />
   if (tab === '共有')
     return <SharingView book={book} userId={userId} {...actions} />
-  if (tab === '設定') return <BookSettings book={book} {...actions} />
+  if (tab === '設定') return <BookSettings book={book} onOpenArchive={onOpenArchive} {...actions} />
   return null
 }
 
@@ -919,10 +934,12 @@ function BookSettings({
   run,
   refresh,
   notify,
-}: { book: Book } & Actions) {
+  onOpenArchive,
+}: { book: Book; onOpenArchive: () => void } & Actions) {
   const [name, setName] = useState(book.name)
   useEffect(() => setName(book.name), [book.id, book.name])
   return (
+    <>
     <View style={styles.panel}>
       <Text style={styles.heading}>このレシピ帖</Text>
       <Field label="レシピ帖の名前" value={name} onChangeText={setName} />
@@ -942,13 +959,18 @@ function BookSettings({
         <Note>名前を変更できるのはレシピ帖の所有者です。</Note>
       )}
     </View>
+    <Pressable accessibilityRole="button" onPress={onOpenArchive} style={styles.historyLink}>
+      <SymbolView name="archivebox" size={23} tintColor={green} />
+      <Text style={styles.body}>アーカイブ済みのレシピ</Text>
+      <SymbolView name="chevron.right" size={15} tintColor={colors.secondaryText} />
+    </Pressable>
+    </>
   )
 }
 
-function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
+function RecipeList({ book, busy, run, notify, archived = false }: { book: Book; archived?: boolean } & Actions) {
   const [recipes, setRecipes] = useState<Recipe[]>([]),
     [selected, setSelected] = useState<Recipe | null>(null),
-    [showArchived, setShowArchived] = useState(false),
     [search, setSearch] = useState(''),
     [loading, setLoading] = useState(true)
   const [addedToday, setAddedToday] = useState<string[]>([])
@@ -975,17 +997,27 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
       notify('今日の献立に追加しました。')
     })
   const load = useCallback(async () => {
-    const r = await api<Recipe[]>(`/books/${book.id}/recipes?status=all`)
+    const r = await api<Recipe[]>(`/books/${book.id}/recipes?status=${archived ? 'archived' : 'active'}`)
     setRecipes(r)
     setLoading(false)
-  }, [book.id])
+  }, [book.id, archived])
   useEffect(() => {
     void load().catch((e) => {
       notify(errorText(e))
       setLoading(false)
     })
   }, [load])
-  const visible = recipes.filter((r) => Boolean(r.archived_at) === showArchived)
+  const toggleArchive = (recipe: Recipe) =>
+    run(async () => {
+      await api(`/books/${book.id}/recipes/${recipe.id}/archive`, 'PUT', {
+        version: recipe.version,
+        archived: !recipe.archived_at,
+      })
+      await load()
+      setSelected(null)
+      notify(recipe.archived_at ? 'レシピを一覧に戻しました。' : 'レシピをアーカイブしました。')
+    })
+  const visible = recipes.filter((r) => Boolean(r.archived_at) === archived)
   const filtered = visible.filter((r) =>
     (r.card.title + r.card.tags.join(' '))
       .toLocaleLowerCase('ja-JP')
@@ -994,10 +1026,6 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
   return (
     <>
       <SearchField value={search} onChangeText={setSearch} />
-      <View style={styles.wrap}>
-        <Button label="レシピ" secondary={showArchived} onPress={() => setShowArchived(false)} />
-        <Button label="アーカイブ済み" secondary={!showArchived} onPress={() => setShowArchived(true)} />
-      </View>
       <Button
         label="最新のレシピを読む"
         secondary
@@ -1006,7 +1034,7 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
       />
       {loading ? (
         <ActivityIndicator color={green} />
-      ) : !visible.length && showArchived ? (
+      ) : !visible.length && archived ? (
         <Note>アーカイブ済みのレシピはありません。</Note>
       ) : !visible.length ? (
         <View style={styles.panel}>
@@ -1054,6 +1082,11 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
                 />
               </View>
             )}
+            {book.role !== 'viewer' && archived && (
+              <View style={styles.recipeAction}>
+                <Button secondary label="アーカイブを解除" disabled={busy} onPress={() => void toggleArchive(r)} />
+              </View>
+            )}
           </View>
           ))
       )}
@@ -1075,17 +1108,7 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
                 back={() => setSelected(null)}
                 onAddToday={book.role === 'viewer' || selected.archived_at ? undefined : () => addToday(selected)}
                 addedToday={addedToday.includes(selected.id)}
-                archive={book.role === 'viewer' ? undefined : async () => {
-                  await run(async () => {
-                    await api(`/books/${book.id}/recipes/${selected.id}/archive`, 'PUT', {
-                      version: selected.version,
-                      archived: !selected.archived_at,
-                    })
-                    await load()
-                    setSelected(null)
-                    notify(selected.archived_at ? 'レシピを一覧に戻しました。' : 'レシピをアーカイブしました。')
-                  })
-                }}
+                archive={book.role === 'viewer' ? undefined : async () => { await toggleArchive(selected) }}
                 save={async (card, memo) => {
                   await run(async () => {
                     await api(`/books/${book.id}/recipes/${selected.id}`, 'PUT', {
