@@ -535,6 +535,31 @@ test('plans and cards reject cross-book IDs and stale edits', async () => {
     { code: 'INVALID_RECIPE' },
   )
 })
+test('archived recipes leave the list but remain readable from existing plans', async () => {
+  const { user, book } = await setup()
+  await billingEvent(db, event(user), config)
+  const source = await archive(user, book)
+  await enqueue(user, book, source.id)
+  await processOne(db, { get: async () => html }, async () => ({ card }))
+  const recipe = (await svc.recipes(user, book))[0]
+  const items = [{ id: randomUUID(), recipeId: recipe.id, state: 'cook', portions: 2 }]
+  await svc.savePlan(user, book, '2026-09-13', { version: 0, items })
+  const viewer = await actor()
+  const invite = await svc.invite(user, book, { email: `${viewer}@example.com`, role: 'viewer' })
+  await svc.acceptInvite(viewer, invite.token)
+  await assert.rejects(svc.setRecipeArchived(viewer, book, recipe.id, { version: 1, value: true }), { code: 'BOOK_ACCESS_DENIED' })
+  await svc.setRecipeArchived(user, book, recipe.id, { version: recipe.version, value: true })
+  assert.deepEqual(await svc.recipes(user, book), [])
+  assert.equal((await svc.recipes(viewer, book, 'archived'))[0].id, recipe.id)
+  assert.equal((await svc.recipes(user, book, 'all'))[0].card.title, card.title)
+  assert.equal((await svc.plan(user, book, '2026-09-13')).items[0].recipeId, recipe.id)
+  await assert.rejects(svc.setRecipeArchived(user, book, recipe.id, { version: recipe.version, value: false }), { code: 'EDIT_CONFLICT' })
+  await assert.rejects(svc.savePlan(user, book, '2026-09-14', { version: 0, items }), { code: 'INVALID_RECIPE' })
+  await svc.savePlan(user, book, '2026-09-13', { version: 1, items })
+  const archived = (await svc.recipes(user, book, 'archived'))[0]
+  await svc.setRecipeArchived(user, book, recipe.id, { version: archived.version, value: false })
+  assert.equal((await svc.recipes(user, book)).length, 1)
+})
 test('deletion requires ownership transfer, disables immediately, cleanup retries safely', async () => {
   const { user, book } = await setup(),
     b = await actor()

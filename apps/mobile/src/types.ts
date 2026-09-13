@@ -20,6 +20,7 @@ export type Recipe = {
   version: number
   created_at: string
   has_image: boolean
+  archived_at: string | null
 }
 export type Archive = {
   id: string

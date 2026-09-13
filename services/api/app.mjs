@@ -311,8 +311,16 @@ export function createApp({
       })),
     ),
   )
-  app.get('/v1/books/:book/recipes', async (req, res) =>
-    res.json(await service.recipes(user(req), req.params.book)),
+  app.get('/v1/books/:book/recipes', async (req, res) => {
+    const status = req.query.status || 'active'
+    requireThat(['active', 'archived', 'all'].includes(status), 400, 'INVALID_INPUT')
+    res.json(await service.recipes(user(req), req.params.book, status))
+  })
+  app.put('/v1/books/:book/recipes/:id/archive', async (req, res) =>
+    res.json(await service.setRecipeArchived(user(req), req.params.book, req.params.id, {
+      version: z.number().int().positive().parse(req.body.version),
+      value: z.boolean().parse(req.body.archived),
+    })),
   )
   app.get('/v1/recipes/:id/image', async (req, res) => {
     const image = await service.recipeImage(user(req), req.params.id)

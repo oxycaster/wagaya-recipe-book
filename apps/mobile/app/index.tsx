@@ -949,6 +949,7 @@ function BookSettings({
 function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
   const [recipes, setRecipes] = useState<Recipe[]>([]),
     [selected, setSelected] = useState<Recipe | null>(null),
+    [showArchived, setShowArchived] = useState(false),
     [search, setSearch] = useState(''),
     [loading, setLoading] = useState(true)
   const [addedToday, setAddedToday] = useState<string[]>([])
@@ -975,7 +976,7 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
       notify('今日の献立に追加しました。')
     })
   const load = useCallback(async () => {
-    const r = await api<Recipe[]>(`/books/${book.id}/recipes`)
+    const r = await api<Recipe[]>(`/books/${book.id}/recipes?status=all`)
     setRecipes(r)
     setLoading(false)
   }, [book.id])
@@ -985,7 +986,8 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
       setLoading(false)
     })
   }, [load])
-  const filtered = recipes.filter((r) =>
+  const visible = recipes.filter((r) => Boolean(r.archived_at) === showArchived)
+  const filtered = visible.filter((r) =>
     (r.card.title + r.card.tags.join(' '))
       .toLocaleLowerCase('ja-JP')
       .includes(search.trim().toLocaleLowerCase('ja-JP')),
@@ -998,8 +1000,19 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
         editable={book.role !== 'viewer'}
         busy={busy}
         back={() => setSelected(null)}
-        onAddToday={book.role === 'viewer' ? undefined : () => addToday(selected)}
+        onAddToday={book.role === 'viewer' || selected.archived_at ? undefined : () => addToday(selected)}
         addedToday={addedToday.includes(selected.id)}
+        archive={book.role === 'viewer' ? undefined : async () => {
+          await run(async () => {
+            await api(`/books/${book.id}/recipes/${selected.id}/archive`, 'PUT', {
+              version: selected.version,
+              archived: !selected.archived_at,
+            })
+            await load()
+            setSelected(null)
+            notify(selected.archived_at ? 'レシピを一覧に戻しました。' : 'レシピをアーカイブしました。')
+          })
+        }}
         save={async (card, memo) => {
           await run(async () => {
             await api(`/books/${book.id}/recipes/${selected.id}`, 'PUT', {
@@ -1017,6 +1030,10 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
   return (
     <>
       <SearchField value={search} onChangeText={setSearch} />
+      <View style={styles.wrap}>
+        <Button label="レシピ" secondary={showArchived} onPress={() => setShowArchived(false)} />
+        <Button label="アーカイブ済み" secondary={!showArchived} onPress={() => setShowArchived(true)} />
+      </View>
       <Button
         label="最新のレシピを読む"
         secondary
@@ -1025,7 +1042,9 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
       />
       {loading ? (
         <ActivityIndicator color={green} />
-      ) : !recipes.length ? (
+      ) : !visible.length && showArchived ? (
+        <Note>アーカイブ済みのレシピはありません。</Note>
+      ) : !visible.length ? (
         <View style={styles.panel}>
           <Text style={styles.heading}>最初のお気に入りを。</Text>
           <Note>
@@ -1062,7 +1081,7 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
                 )}
               </View>
             </Pressable>
-            {book.role !== 'viewer' && (
+            {book.role !== 'viewer' && !r.archived_at && (
               <Button
                 secondary
                 label={addedToday.includes(r.id) ? '今日の献立に追加済み' : '今日の献立に追加'}
@@ -1082,19 +1101,21 @@ function RecipeDetail({
   editable,
   busy,
   back,
+  backLabel = 'レシピ一覧に戻る',
   save,
   onAddToday,
   addedToday = false,
-  backLabel = 'レシピ一覧に戻る',
+  archive,
 }: {
   recipe: Recipe
   editable: boolean
   busy: boolean
   back: () => void
+  backLabel?: string
   save: (c: Card, m: string) => Promise<void>
   onAddToday?: () => void
   addedToday?: boolean
-  backLabel?: string
+  archive?: () => Promise<void>
 }) {
   const [edit, setEdit] = useState(false),
     [card, setCard] = useState<Card>(recipe.card),
@@ -1320,6 +1341,7 @@ function RecipeDetail({
       <Note>
         AIが原文から整理したレシピです。材料・分量・加熱時間は出典も確認してください。
       </Note>
+      {!!recipe.archived_at && !edit && <Note>このレシピはアーカイブ済みです。</Note>}
       {editable &&
         (edit ? (
           <>
@@ -1351,6 +1373,24 @@ function RecipeDetail({
             onPress={() => setEdit(true)}
           />
         ))}
+      {archive && !edit && (
+        <Button
+          secondary
+          disabled={busy}
+          label={recipe.archived_at ? 'レシピ一覧に戻す' : 'レシピをアーカイブ'}
+          onPress={() => {
+            if (recipe.archived_at) void archive()
+            else Alert.alert(
+              'レシピをアーカイブ',
+              'レシピ一覧と新しい献立の候補から隠します。過去の献立からは引き続き開けます。',
+              [
+                { text: 'キャンセル', style: 'cancel' },
+                { text: 'アーカイブ', onPress: () => void archive() },
+              ],
+            )
+          }}
+        />
+      )}
     </>
   )
 }
@@ -1824,7 +1864,7 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
     async (d: string) => {
       const [p, r] = await Promise.all([
         api<Plan>(`/books/${book.id}/plans/${d}`),
-        api<Recipe[]>(`/books/${book.id}/recipes`),
+        api<Recipe[]>(`/books/${book.id}/recipes?status=all`),
       ])
       setPlan(p)
       setRecipes(r)
@@ -1930,7 +1970,7 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
             <>
               <Text style={styles.heading}>料理を追加</Text>
               {recipes
-                .filter((r) => !plan.items.some((i) => i.recipeId === r.id))
+                .filter((r) => !r.archived_at && !plan.items.some((i) => i.recipeId === r.id))
                 .map((r) => (
                   <Button
                     key={r.id}
