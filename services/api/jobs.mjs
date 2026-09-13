@@ -171,6 +171,13 @@ export async function processOne(db, store, extract) {
       'RETRY_LIMIT',
       'BOOK_ACCESS_REVOKED',
       'STALE_LEASE',
+      'SIMULATOR_MODEL_CALL_LIMIT',
+      'MODEL_INCOMPLETE',
+      'MODEL_HTTP_429',
+      'MODEL_HTTP_500',
+      'MODEL_HTTP_502',
+      'MODEL_HTTP_503',
+      'MODEL_HTTP_504',
     ].includes(e.message)
       ? e.message
       : 'IMPORT_FAILED'

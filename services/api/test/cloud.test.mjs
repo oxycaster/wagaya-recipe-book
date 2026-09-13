@@ -46,7 +46,7 @@ const card = {
 }
 const html =
   '<html><body><h1>卵焼き</h1><p>卵 2個</p><p>卵を焼く</p></body></html>'
-test('simulator ports require real extraction, keys, and a model-call cap', async () => {
+test('simulator ports require real extraction, keys, and a per-import model-call cap', async () => {
   assert.equal(simulatorExtraction({}).enabled, false)
   assert.equal(simulatorExtraction({ SIMULATOR_REAL_EXTRACTION: '0' }).enabled, false)
   const env = {
@@ -65,17 +65,19 @@ test('simulator ports require real extraction, keys, and a model-call cap', asyn
     mode = simulatorExtraction(env, {
       fetchPage,
       modelFetch: async () => { calls++; return { ok: true } },
-      createExtractor: (_env, modelFetch) => () => modelFetch('https://api.openai.com/v1/responses'),
+      createExtractor: (_env, modelFetch) => async (_html, count = 1) => {
+        for (let i = 0; i < count; i++) await modelFetch('https://api.openai.com/v1/responses')
+      },
     })
   assert.equal(mode.enabled, true)
   assert.equal(mode.port, 4330)
   assert.deepEqual(await mode.fetchPage('https://example.com/recipe'), {
     url: 'https://example.com/recipe', html,
   })
-  for (let i = 0; i < MAX_SIMULATOR_MODEL_CALLS; i++)
-    await mode.extract(html)
-  assert.throws(() => mode.extract(html), /SIMULATOR_MODEL_CALL_LIMIT/)
-  assert.equal(calls, MAX_SIMULATOR_MODEL_CALLS)
+  await mode.extract(html, MAX_SIMULATOR_MODEL_CALLS)
+  await assert.rejects(mode.extract(html, MAX_SIMULATOR_MODEL_CALLS + 1), /SIMULATOR_MODEL_CALL_LIMIT/)
+  await mode.extract(html)
+  assert.equal(calls, MAX_SIMULATOR_MODEL_CALLS * 2 + 1)
 })
 test('simulator real mode passes fetched HTML through the production extractor', async () => {
   const env = {
@@ -489,6 +491,18 @@ test('LLM failure/review release reservation; retry creates new job; stale lease
   await finishJob(db, fresh, { card: null })
   assert.equal((await svc.wallet(user)).available, 10)
   assert.equal((await svc.recipes(user, book)).length, 0)
+})
+test('known model failures keep a safe error code without consuming credits', async () => {
+  const { user, book } = await setup()
+  await billingEvent(db, event(user), config)
+  const a = await archive(user, book)
+  const job = await enqueue(user, book, a.id, randomUUID())
+  await processOne(db, { get: async () => html }, async () => {
+    throw new Error('SIMULATOR_MODEL_CALL_LIMIT')
+  })
+  const saved = (await db.query('SELECT status,error_code FROM jobs WHERE id=$1', [job.id])).rows[0]
+  assert.deepEqual(saved, { status: 'failed', error_code: 'SIMULATOR_MODEL_CALL_LIMIT' })
+  assert.equal((await svc.wallet(user)).available, 10)
 })
 test('membership removal during model request discards card and releases reservation', async () => {
   const { user, book } = await setup(),
