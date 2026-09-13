@@ -13,7 +13,6 @@ import {
   ScrollView,
   Share,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
@@ -1417,7 +1416,6 @@ function Imports({
   const [url, setUrl] = useState(''),
     [html, setHtml] = useState<string | undefined>(),
     [filename, setFilename] = useState(''),
-    [consent, setConsent] = useState(false),
     [archives, setArchives] = useState<Archive[]>([]),
     [currentTotal, setCurrentTotal] = useState(0),
     [showHistory, setShowHistory] = useState(false),
@@ -1530,7 +1528,7 @@ function Imports({
       const accepted = await new Promise<boolean>((resolve) =>
         Alert.alert(
           'カード化に使用する取り込み権',
-          `このページには最大${quote.maximumCredits}回分を使用します。処理が安く完了した場合は差分を返却し、失敗・要確認では消費しません。`,
+          `HTMLをOpenAIへ送信してカード化します。最大${quote.maximumCredits}回分の取り込み権を使用します（利用可能: ${wallet?.available ?? '—'}回分）。処理が安く完了した場合は差分を返却し、失敗・要確認では消費しません。送信と取り込み権の使用に同意しますか？`,
           [
             { text: 'キャンセル', style: 'cancel', onPress: () => resolve(false) },
             { text: 'カード化する', onPress: () => resolve(true) },
@@ -1633,10 +1631,6 @@ function Imports({
               onRetry={
                 book.role !== 'viewer' && a.dismissed_at && (a.status === 'needs_review' || a.status === 'failed')
                   ? () => {
-                      if (!consent) {
-                        notify('取り込み画面に戻り、OpenAIへの送信に同意してから再試行してください。')
-                        return
-                      }
                       start(a)
                     }
                   : undefined
@@ -1721,24 +1715,6 @@ function Imports({
           />
         </View>
       )}
-      <View style={styles.panel}>
-        <Text style={styles.heading}>カード化の確認</Text>
-        <Note>
-          HTMLの長さから最大使用回数を事前に表示します。実際の処理が安く完了した場合は差分を返却し、失敗・要確認では消費しません。HTMLをOpenAIへ送信して整理します。
-        </Note>
-        <View style={styles.row}>
-          <Switch
-            accessibilityLabel="HTMLのOpenAI送信と取り込み権の使用に同意"
-            value={consent}
-            onValueChange={setConsent}
-            trackColor={{ true: green }}
-          />
-          <Text style={[styles.body, { flex: 1 }]}>
-            送信と取り込み権の使用に同意する
-          </Text>
-        </View>
-        <Note>利用可能: {wallet?.available ?? '—'}回分</Note>
-      </View>
       <Pressable
         accessibilityHint="保存したページの一覧を開きます"
         accessibilityRole="button"
@@ -1779,7 +1755,7 @@ function Imports({
                 label={
                   a.status ? 'もう一度カード化する' : '費用を確認してカード化する'
                 }
-                disabled={busy || !consent}
+                disabled={busy}
                 onPress={() => start(a)}
               />
             )}
