@@ -24,17 +24,19 @@ export function simulatorExtraction(
     throw new Error('Real simulator extraction is development-only')
   for (const key of ['CLERK_ISSUER_URL', 'OPENAI_API_KEY', 'OPENAI_MODEL'])
     if (!env[key]) throw new Error(`Real simulator extraction needs ${key}`)
-  let modelCalls = 0
-  const guardedModelFetch = (...args) => {
-    if (modelCalls >= MAX_SIMULATOR_MODEL_CALLS)
-      throw new Error('SIMULATOR_MODEL_CALL_LIMIT')
-    modelCalls++
-    return modelFetch(...args)
-  }
   return {
     enabled: true,
     port,
     fetchPage,
-    extract: createExtractor(env, guardedModelFetch),
+    extract: (html, checkpoint) => {
+      let modelCalls = 0
+      const guardedModelFetch = (...args) => {
+        if (modelCalls >= MAX_SIMULATOR_MODEL_CALLS)
+          throw new Error('SIMULATOR_MODEL_CALL_LIMIT')
+        modelCalls++
+        return modelFetch(...args)
+      }
+      return createExtractor(env, guardedModelFetch)(html, checkpoint)
+    },
   }
 }

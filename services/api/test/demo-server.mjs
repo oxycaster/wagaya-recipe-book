@@ -196,7 +196,7 @@ const port = realExtraction.enabled
 const server = app.listen(port, '127.0.0.1', () =>
   console.log(
     realExtraction.enabled
-      ? `LOCAL REAL EXTRACTION http://127.0.0.1:${port} — OpenAI calls are billed; max ${MAX_SIMULATOR_MODEL_CALLS} model calls per process`
+      ? `LOCAL REAL EXTRACTION http://127.0.0.1:${port} — OpenAI calls are billed; max ${MAX_SIMULATOR_MODEL_CALLS} model calls per import`
       : `LOCAL FIXTURE http://127.0.0.1:${port} — demo@example.test / 123456`,
   ),
 )
