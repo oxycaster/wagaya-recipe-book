@@ -992,41 +992,6 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
       .toLocaleLowerCase('ja-JP')
       .includes(search.trim().toLocaleLowerCase('ja-JP')),
   )
-  if (selected)
-    return (
-      <RecipeDetail
-        key={`${selected.id}:${selected.version}`}
-        recipe={selected}
-        editable={book.role !== 'viewer'}
-        busy={busy}
-        back={() => setSelected(null)}
-        onAddToday={book.role === 'viewer' || selected.archived_at ? undefined : () => addToday(selected)}
-        addedToday={addedToday.includes(selected.id)}
-        archive={book.role === 'viewer' ? undefined : async () => {
-          await run(async () => {
-            await api(`/books/${book.id}/recipes/${selected.id}/archive`, 'PUT', {
-              version: selected.version,
-              archived: !selected.archived_at,
-            })
-            await load()
-            setSelected(null)
-            notify(selected.archived_at ? 'レシピを一覧に戻しました。' : 'レシピをアーカイブしました。')
-          })
-        }}
-        save={async (card, memo) => {
-          await run(async () => {
-            await api(`/books/${book.id}/recipes/${selected.id}`, 'PUT', {
-              version: selected.version,
-              card,
-              memo,
-            })
-            await load()
-            setSelected(null)
-            notify('レシピを更新しました。')
-          })
-        }}
-      />
-    )
   return (
     <>
       <SearchField value={search} onChangeText={setSearch} />
@@ -1092,6 +1057,52 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
           </View>
           ))
       )}
+      <Modal
+        animationType="slide"
+        onDismiss={() => setSelected(null)}
+        onRequestClose={() => setSelected(null)}
+        presentationStyle="pageSheet"
+        visible={selected !== null}
+      >
+        <SafeAreaView style={styles.selectorSheet}>
+          <ScrollView contentContainerStyle={styles.content}>
+            {selected && (
+              <RecipeDetail
+                key={`${selected.id}:${selected.version}`}
+                recipe={selected}
+                editable={book.role !== 'viewer'}
+                busy={busy}
+                back={() => setSelected(null)}
+                onAddToday={book.role === 'viewer' || selected.archived_at ? undefined : () => addToday(selected)}
+                addedToday={addedToday.includes(selected.id)}
+                archive={book.role === 'viewer' ? undefined : async () => {
+                  await run(async () => {
+                    await api(`/books/${book.id}/recipes/${selected.id}/archive`, 'PUT', {
+                      version: selected.version,
+                      archived: !selected.archived_at,
+                    })
+                    await load()
+                    setSelected(null)
+                    notify(selected.archived_at ? 'レシピを一覧に戻しました。' : 'レシピをアーカイブしました。')
+                  })
+                }}
+                save={async (card, memo) => {
+                  await run(async () => {
+                    await api(`/books/${book.id}/recipes/${selected.id}`, 'PUT', {
+                      version: selected.version,
+                      card,
+                      memo,
+                    })
+                    await load()
+                    setSelected(null)
+                    notify('レシピを更新しました。')
+                  })
+                }}
+              />
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </>
   )
 }
