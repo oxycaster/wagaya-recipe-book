@@ -18,7 +18,7 @@ import {
   View,
 } from 'react-native'
 import { useAuth, useSignIn, useSignUp, useUser } from '@clerk/expo'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
 import { Image } from 'expo-image'
 import { SymbolView, type SFSymbol } from 'expo-symbols'
@@ -279,9 +279,9 @@ function RecipeArtwork({
     </View>
   )
 }
-function Frame({ children }: { children: React.ReactNode }) {
+function Frame({ children, tabBar = false }: { children: React.ReactNode; tabBar?: boolean }) {
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={tabBar ? ['top', 'left', 'right'] : undefined} style={styles.safe}>
       <StatusBar style="auto" />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -309,8 +309,9 @@ function TabBar({
   selected: TabName
   onSelect: (tab: TabName) => void
 }) {
+  const { bottom } = useSafeAreaInsets()
   return (
-    <View accessibilityRole="tablist" style={styles.tabs}>
+    <View accessibilityRole="tablist" style={[styles.tabs, { paddingBottom: bottom }]}>
       {tabs.map(({ label, symbol }) => {
         const active = selected === label
         return (
@@ -746,7 +747,7 @@ function Home({
     }
   }
   return (
-    <Frame>
+    <Frame tabBar>
       <View style={styles.header}>
         <BookSelector
           books={books}
