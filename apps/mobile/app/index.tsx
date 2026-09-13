@@ -1023,11 +1023,10 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
         </View>
       ) : (
         filtered.map((r) => (
-          <View key={r.id}>
+          <View key={r.id} style={styles.recipe}>
             <Pressable
               accessibilityRole="button"
               onPress={() => setSelected(r)}
-              style={styles.recipe}
             >
               <RecipeArtwork recipe={r} />
               <View style={styles.recipeCopy}>
@@ -1046,12 +1045,14 @@ function RecipeList({ book, busy, run, notify }: { book: Book } & Actions) {
               </View>
             </Pressable>
             {book.role !== 'viewer' && !r.archived_at && (
-              <Button
-                secondary
-                label={addedToday.includes(r.id) ? '今日の献立に追加済み' : '今日の献立に追加'}
-                disabled={busy || addedToday.includes(r.id)}
-                onPress={() => addToday(r)}
-              />
+              <View style={styles.recipeAction}>
+                <Button
+                  secondary
+                  label={addedToday.includes(r.id) ? '今日の献立に追加済み' : '今日の献立に追加'}
+                  disabled={busy || addedToday.includes(r.id)}
+                  onPress={() => addToday(r)}
+                />
+              </View>
             )}
           </View>
           ))
@@ -2554,6 +2555,11 @@ const styles = StyleSheet.create({
     borderColor: colors.separator,
   },
   recipeCopy: { padding: 18, gap: 8 },
+  recipeAction: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.separator,
+    padding: 12,
+  },
   artwork: { overflow: 'hidden', position: 'relative' },
   cardArtwork: { width: '100%', height: 168 },
   compactArtwork: { width: 72, height: 72, borderRadius: 16 },
