@@ -1451,7 +1451,6 @@ function Imports({
     [historyLoading, setHistoryLoading] = useState(false)
   const keys = useRef(new Map<string, string>())
   const previousStatuses = useRef('')
-  const historyTouch = useRef<{ x: number; y: number } | null>(null)
   const load = useCallback(async () => {
     const page = await api<ArchivePage>(
       `/books/${book.id}/archive-history?limit=10&status=current`,
@@ -1583,25 +1582,13 @@ function Imports({
     failed: '取り込み失敗（権利は未消費）',
     needs_review: '内容の確認が必要（権利は未消費）',
   }
-  if (showHistory)
-    return (
-      <View
-        onTouchStart={(event) => {
-          const { pageX, pageY } = event.nativeEvent
-          historyTouch.current = pageX <= 32 ? { x: pageX, y: pageY } : null
-        }}
-        onTouchEnd={(event) => {
-          const start = historyTouch.current
-          historyTouch.current = null
-          if (!start) return
-          const { pageX, pageY } = event.nativeEvent
-          if (pageX - start.x > 80 && Math.abs(pageY - start.y) < 50)
-            setShowHistory(false)
-        }}
-        onTouchCancel={() => { historyTouch.current = null }}
+  const historyScreen = (
+      <ScrollView
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
       >
         <Pressable
-          accessibilityLabel="取り込み画面に戻る"
+          accessibilityLabel="取り込み履歴を閉じる"
           accessibilityRole="button"
           onPress={() => setShowHistory(false)}
           style={({ pressed }) => [
@@ -1609,8 +1596,8 @@ function Imports({
             pressed && { opacity: 0.55 },
           ]}
         >
-          <SymbolView name="chevron.left" size={17} tintColor={green} />
-          <Text style={styles.backLinkText}>取り込み</Text>
+          <SymbolView name="xmark" size={17} tintColor={green} />
+          <Text style={styles.backLinkText}>閉じる</Text>
         </Pressable>
         <Text accessibilityRole="header" style={styles.heading}>
           取り込み履歴
@@ -1687,10 +1674,21 @@ function Imports({
             }
           />
         )}
-      </View>
+      </ScrollView>
     )
   return (
     <>
+      <Modal
+        animationType="slide"
+        onDismiss={() => setShowHistory(false)}
+        onRequestClose={() => setShowHistory(false)}
+        presentationStyle="pageSheet"
+        visible={showHistory}
+      >
+        <SafeAreaView style={styles.selectorSheet}>
+          {historyScreen}
+        </SafeAreaView>
+      </Modal>
       <Text style={styles.heading}>お気に入りを保存</Text>
       <Note>
         HTML原本は自分だけに保存されます。作成したカードはこのレシピ帖の参加者に共有されます。
