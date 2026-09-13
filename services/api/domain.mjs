@@ -511,15 +511,32 @@ export function domain(db) {
           ).rows,
         }
       }),
-    recipes: (user, book) =>
+    recipes: (user, book, status = 'active') =>
       run(user, async (c) => {
         await member(c, user, book)
         return (
           await c.query(
-            'SELECT id,card,version,created_at,image_key IS NOT NULL AS has_image FROM recipes WHERE book_id=$1 ORDER BY created_at DESC',
-            [book],
+            `SELECT id,card,version,created_at,archived_at,image_key IS NOT NULL AS has_image
+             FROM recipes WHERE book_id=$1
+             AND ($2='all' OR ($2='archived' AND archived_at IS NOT NULL)
+               OR ($2='active' AND archived_at IS NULL))
+             ORDER BY created_at DESC`,
+            [book, status],
           )
         ).rows
+      }),
+    setRecipeArchived: (user, book, id, archived) =>
+      run(user, async (c) => {
+        await member(c, user, book, ['owner', 'editor'])
+        const { rows } = await c.query(
+          `UPDATE recipes SET archived_at=CASE WHEN $4 THEN COALESCE(archived_at,now()) ELSE NULL END,
+           version=version+1
+           WHERE book_id=$1 AND id=$2 AND version=$3
+           RETURNING id,archived_at`,
+          [book, id, archived.version, archived.value],
+        )
+        requireThat(rows.length, 409, 'EDIT_CONFLICT')
+        return rows[0]
       }),
     updateRecipe: (user, book, id, input) =>
       run(user, async (c) => {
@@ -588,24 +605,27 @@ export function domain(db) {
               .max(50),
           })
           .parse(input)
-        const ids = [...new Set(data.items.map((i) => i.recipeId))]
-        if (ids.length)
-          requireThat(
-            (
-              await c.query(
-                'SELECT id FROM recipes WHERE book_id=$1 AND id=ANY($2::uuid[])',
-                [book, ids],
-              )
-            ).rows.length === ids.length,
-            400,
-            'INVALID_RECIPE',
-          )
         const previous = (
           await c.query(
-            'SELECT version FROM plans WHERE book_id=$1 AND day=$2',
+            'SELECT version,items FROM plans WHERE book_id=$1 AND day=$2',
             [book, day],
           )
         ).rows[0]
+        const ids = [...new Set(data.items.map((i) => i.recipeId))]
+        if (ids.length) {
+          const recipes = (
+            await c.query(
+              'SELECT id,archived_at FROM recipes WHERE book_id=$1 AND id=ANY($2::uuid[])',
+              [book, ids],
+            )
+          ).rows
+          const priorIds = new Set((previous?.items || []).map((i) => i.recipeId))
+          requireThat(
+            recipes.length === ids.length && recipes.every((r) => !r.archived_at || priorIds.has(r.id)),
+            400,
+            'INVALID_RECIPE',
+          )
+        }
         requireThat(
           (previous?.version || 0) === data.version,
           409,

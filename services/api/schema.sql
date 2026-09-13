@@ -87,6 +87,7 @@ ALTER TABLE archives ADD COLUMN IF NOT EXISTS image_content_type text;
 ALTER TABLE archives ADD COLUMN IF NOT EXISTS dismissed_at timestamptz;
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS image_key text UNIQUE;
 ALTER TABLE recipes ADD COLUMN IF NOT EXISTS image_content_type text;
+ALTER TABLE recipes ADD COLUMN IF NOT EXISTS archived_at timestamptz;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS quote_id uuid;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS reserved_credits integer NOT NULL DEFAULT 1;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS consumed_credits integer NOT NULL DEFAULT 0;
