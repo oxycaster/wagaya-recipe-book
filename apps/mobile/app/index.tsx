@@ -781,7 +781,7 @@ function Home({
           />
         }
       >
-        {(tab === '設定' || (!book && tab === '献立')) && (
+        {((tab === '設定' && !archivedOpen) || (!book && tab === '献立')) && (
           <View style={styles.panel}>
             <Text style={styles.heading}>レシピ帖を作る</Text>
             <Field
