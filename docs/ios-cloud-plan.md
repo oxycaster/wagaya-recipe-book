@@ -8,6 +8,11 @@
 - 献立の料理名と写真を押すと、既存のレシピカード表示を iOS の page sheet で開く。閉じるボタンまたは下方向のスワイプで献立へ戻り、献立の日付や編集中の内容を維持する。
 - モバイル型検査と実画面での往復を確認する。実機での配布版検証は別途記録する。
 
+## Issue #32: レシピカードから一覧へスワイプで戻る（2026-09-13）
+
+- レシピ一覧から開くカードを iOS の page sheet で表示し、下方向のスワイプで一覧へ戻れるようにする。既存の戻るボタンも残し、一覧の検索状態を維持する。
+- 編集中の誤操作と実機でのスワイプ挙動は端末検証で確認する。
+
 作成: 2026-09-06 / 更新: 2026-09-11 / 状態: P1〜P4のローカル実装・検証済み。内部TestFlight build 3とproduction build 5を配信済み。本番API/worker、HTTPS、DNS、Clerk production domain、dev Docker PostgreSQL 18、prod Crunchy Bridge PostgreSQL 18、非公開prod S3、法務・サポートページの初期受入は完了。EAS production環境の必須8項目も登録済み。production build 5はiPhoneへインストール・起動済み。実機で判明したS3認証情報未注入は修正・本番配備し、コンテナからS3 put/get/deleteを確認済み。App Store Connectの2商品は不足していた審査画像と10回商品の日本配信設定を補い、RevenueCatで両方ともReady to Submit。実OpenAI・Sandbox購入・本番でのカード化完了は未確認。取り込み権は10回150円、50回600円で開始する。App Store公開までの工程は [app-store-release-plan.md](app-store-release-plan.md) を参照。
 
 ## 目的と前提
