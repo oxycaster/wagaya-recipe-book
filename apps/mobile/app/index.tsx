@@ -690,6 +690,7 @@ function Home({
     [newName, setNewName] = useState(''),
     [inviteToken, setInviteToken] = useState(initialToken || '')
   const [wallet, setWallet] = useState<Wallet | null>(null)
+  const [recipeRefreshKey, setRecipeRefreshKey] = useState(0)
   const gate = useRef(false)
   const run = async (fn: () => Promise<void>) => {
     if (gate.current) return
@@ -777,7 +778,10 @@ function Home({
         refreshControl={
           <RefreshControl
             refreshing={busy}
-            onRefresh={() => void run(refresh)}
+            onRefresh={() => void run(async () => {
+              await refresh()
+              setRecipeRefreshKey((key) => key + 1)
+            })}
           />
         }
       >
@@ -854,7 +858,7 @@ function Home({
               <SymbolView name="chevron.left" size={17} tintColor={green} />
               <Text style={styles.backLinkText}>設定に戻る</Text>
             </Pressable>
-            <RecipeList key={`${book.id}:archived`} book={book} archived busy={busy} run={run} refresh={refresh} notify={setMessage} />
+            <RecipeList key={`${book.id}:archived`} book={book} archived refreshKey={recipeRefreshKey} busy={busy} run={run} refresh={refresh} notify={setMessage} />
           </>
         )}
         {book && !(archivedOpen && tab === '設定') && (
@@ -867,6 +871,7 @@ function Home({
             busy={busy}
             run={run}
             refresh={refresh}
+            recipeRefreshKey={recipeRefreshKey}
             notify={setMessage}
             onOpenArchive={() => setArchivedOpen(true)}
           />
@@ -910,6 +915,7 @@ function BookContent({
   userId,
   wallet,
   onOpenArchive,
+  recipeRefreshKey,
   ...actions
 }: {
   book: Book
@@ -917,8 +923,9 @@ function BookContent({
   userId: string
   wallet: Wallet | null
   onOpenArchive: () => void
+  recipeRefreshKey: number
 } & Actions) {
-  if (tab === 'レシピ') return <RecipeList book={book} {...actions} />
+  if (tab === 'レシピ') return <RecipeList book={book} refreshKey={recipeRefreshKey} {...actions} />
   if (tab === '取り込み')
     return <Imports book={book} wallet={wallet} {...actions} />
   if (tab === '献立') return <MealPlan book={book} {...actions} />
@@ -968,7 +975,7 @@ function BookSettings({
   )
 }
 
-function RecipeList({ book, busy, run, notify, archived = false }: { book: Book; archived?: boolean } & Actions) {
+function RecipeList({ book, busy, run, notify, archived = false, refreshKey }: { book: Book; archived?: boolean; refreshKey: number } & Actions) {
   const [recipes, setRecipes] = useState<Recipe[]>([]),
     [selected, setSelected] = useState<Recipe | null>(null),
     [search, setSearch] = useState(''),
@@ -1006,7 +1013,7 @@ function RecipeList({ book, busy, run, notify, archived = false }: { book: Book;
       notify(errorText(e))
       setLoading(false)
     })
-  }, [load])
+  }, [load, refreshKey])
   const toggleArchive = (recipe: Recipe) =>
     run(async () => {
       await api(`/books/${book.id}/recipes/${recipe.id}/archive`, 'PUT', {
@@ -1026,12 +1033,6 @@ function RecipeList({ book, busy, run, notify, archived = false }: { book: Book;
   return (
     <>
       <SearchField value={search} onChangeText={setSearch} />
-      <Button
-        label="最新のレシピを読む"
-        secondary
-        disabled={busy}
-        onPress={() => void run(load)}
-      />
       {loading ? (
         <ActivityIndicator color={green} />
       ) : !visible.length && archived ? (
