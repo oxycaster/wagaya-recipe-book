@@ -1,5 +1,11 @@
 # 進捗・引き継ぎ
 
+- 2026-09-14 Simulatorを実抽出専用へ変更: 4330番など4329番以外のローカルdemo APIは実URL取得とサーバー側OpenAI抽出を必須にし、`SIMULATOR_REAL_EXTRACTION=0` や必要なClerk/OpenAI設定が欠けた場合は起動拒否する。旧TestFlight用4329番のみ固定fixtureを維持。計画とrunbookを単一のSimulator実抽出手順へ更新した。`services/api` の `pnpm test` は40/40、`git diff --check` は成功。稼働していた4330番の固定fixtureを停止し、Git管理外の開発用設定で同じポートを実抽出モードとして起動。起動ログ `LOCAL REAL EXTRACTION`、API `/health`、Metro `/status`、iPhone 17eのレシピ帖作成画面を確認した。再起動で前プロセスの一時的な原本・カード・レシピ帖は消去された。実URL保存・OpenAI呼び出し・カード内容の検証は未実施。OpenAI料金は実際にカード化した際に発生する。
+
+- 2026-09-14 Simulator取り込み症状の原因調査: 現在の4330番は `SIMULATOR_REAL_EXTRACTION` 未指定の固定fixture。任意URLに同じ `<h1>デモのレシピ</h1>` を返すため、2件目以降は `sha256` 重複で既存原本へ統合され、未処理一覧が増えない。workerもURLと無関係に固定カード「なすと豚肉の味噌炒め」を返す。実URL抽出の不具合とは未判定。コード・API設定は変更していない。次に指定URLの実抽出を確認するなら、OpenAI料金とfixture API再起動による一時データ消去を了承のうえ、runbookの実抽出モードで別途起動する。
+
+- 2026-09-14 main更新のSimulator反映: 現作業ツリーを `origin/main` の `70837af`（PR #38、取り込み履歴のスワイプ復帰）へfast-forwardした。変更はモバイル画面コードと計画・進捗文書のみでnative依存の変更なし。fixture API（4330）とMetro（8093）を再起動し、両health/status正常、iOS bundle 1329 modules完了、iPhone 17e / iOS 26.5で献立画面の起動を確認した。`apps/mobile` の `pnpm check` は成功。fixture API再起動のため以前のメモリ上データは消去された。取り込み履歴のスワイプ操作と実機・TestFlightは未検証。
+
 - 2026-09-13 取り込み履歴の戻る操作: 履歴内の左端32ptからの右スワイプ（水平80pt超、垂直50pt未満）で取り込み画面へ戻れるようにした。戻るボタンも維持し、通常の縦スクロールや履歴内操作は対象外とした。`pnpm --dir apps/mobile check`、`git diff --check` は成功。実機/Simulatorでのスワイプ操作は未確認。次は履歴の上部・スクロール後でスワイプ、縦スクロール、検索入力を実画面で確認する。
 
 - 2026-09-13 PR #37の競合解消: 最新 `origin/main` のPR #35・#36を取り込み、Issue #32とIssue #33の進捗記録を両方保持した。`pnpm --dir apps/mobile check`、`git diff --check origin/main...HEAD` は成功。GitHubでPR #37が `MERGEABLE` / `CLEAN` であることを確認。実画面操作とTestFlight・本番配備は引き続き未実施。

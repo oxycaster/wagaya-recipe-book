@@ -25,12 +25,12 @@ mise exec -- pnpm export:ios
 
 実PostgreSQLの複数接続で同じテストを行う場合は、専用のローカルDBを起動し `TEST_POSTGRES_URL=postgresql://recipe:recipe@127.0.0.1:54329/recipe mise exec -- pnpm test` をservices/apiから実行する。テストはランダム名の一時DBを作成し、終了時にそのDBだけを削除する。localhost以外は拒否する。テスト用DBロールにCREATEDB権限が必要。
 
-## シミュレーターのClerk開発確認
+## シミュレーターのClerk開発・実抽出確認
 
-Clerk development instanceの実メール認証と、メモリ上だけのAPIサーバーを組み合わせて画面を確認する。本番Dockerにtestディレクトリは含めない。`services/api/.env` にdevelopment instanceの `CLERK_ISSUER_URL` を設定してから起動する。初回ログイン後は空の状態なので、画面からレシピ帖を作成する。
+Clerk development instanceの実メール認証と、メモリ上だけのAPIサーバーを組み合わせて画面を確認する。本番Dockerにtestディレクトリは含めない。Simulator用ポート（4330など）は常に実URL取得・実OpenAI抽出とし、設定が欠けていれば起動を拒否する。`services/api/.env`（Git管理外）へdevelopment instanceの `CLERK_ISSUER_URL`、サーバー専用の `OPENAI_API_KEY`、`OPENAI_MODEL` を設定する。値をコマンド行やアプリの `EXPO_PUBLIC_*` に書かない。`OPENAI_SCAN_MODEL` は必要な場合だけ指定する。
 
 ```sh
-# ターミナル1: services/api。build 3用fixtureの4329と分離する
+# ターミナル1: services/api。4329の旧TestFlight用固定fixtureとは分離する
 DEMO_PORT=4330 mise exec -- node --env-file-if-exists=.env test/demo-server.mjs
 # ターミナル2: apps/mobile
 NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4330 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=<development publishable key> mise exec -- pnpm exec expo start --dev-client --localhost --port 8093
@@ -38,20 +38,7 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4
 mise exec -- pnpm exec expo run:ios --no-bundler
 ```
 
-開発クライアントの接続先は `http://127.0.0.1:8093`。自分のメールアドレスへ届くClerkの確認コードでログインする。ローカルfixtureは認証済みユーザーへ起動中一度だけテスト用取り込み権10回分を自動付与するため、StoreKit購入なしで取り込みを確認できる。APIデータとテスト用権利はプロセス終了時に消え、実課金・S3・OpenAIは実行しない。development instanceの成功をproduction instanceの検証済みとは扱わない。終了時は各プロセスをCtrl-Cで停止する。
-
-### Simulatorから実URL・実OpenAIを試す
-
-上記fixtureを停止し、`services/api/.env`（Git管理外）へdevelopment Clerkの `CLERK_ISSUER_URL`、サーバー専用の `OPENAI_API_KEY`、`OPENAI_MODEL` を設定する。値をコマンド行やアプリの `EXPO_PUBLIC_*` に書かない。`OPENAI_SCAN_MODEL` は必要な場合だけ指定する。API側は通常と同じ公開IP・リダイレクト・HTML容量検査を使い、原本とカードはこのプロセスのメモリにだけ置く。
-
-```sh
-# services/api。旧TestFlight用の4329では起動できない
-SIMULATOR_REAL_EXTRACTION=1 DEMO_PORT=4330 mise exec -- node --env-file-if-exists=.env test/demo-server.mjs
-# apps/mobile。development Clerk publishable keyはGit管理外の apps/mobile/.env に設定する
-NODE_OPTIONS=--dns-result-order=ipv4first EXPO_PUBLIC_API_URL=http://127.0.0.1:4330 mise exec -- pnpm exec expo start --dev-client --localhost --port 8093
-```
-
-Simulatorのdevelopment buildを開いてClerkでログインし、レシピ帖を作成してURLを保存する。保存時に実HTMLを取得し、同意・最大権数の確認後にサーバー側からOpenAIへ送信する。初期の固定カードは生成せず、成功したカードだけ表示する。取り込み権10回分はあくまでテスト用で、OpenAI側の実料金は発生する。1プロセス最大30回のモデル呼び出しで停止し、超過時のジョブは失敗・権利返還となる。S3・RevenueCat・本番DBは使わず、終了時にテストカードと原本は消える。実OpenAIを通したローカル検証と本番配備の受入は別に記録する。
+開発クライアントの接続先は `http://127.0.0.1:8093`。自分のメールアドレスへ届くClerkの確認コードでログインし、レシピ帖を作成してURLを保存する。保存時に実HTMLを安全に取得し、同意・最大権数の確認後にサーバー側からOpenAIへ送信する。固定カードは生成しない。認証済みユーザーにはプロセス内限定のテスト用取り込み権10回分を付与するが、OpenAI側の実料金は発生する。1プロセス最大30回のモデル呼び出しで停止し、超過時のジョブは失敗・権利返還となる。S3・RevenueCat・本番DBは使わず、終了時にテストカードと原本は消える。開発環境の成功は本番サービス受入と区別する。終了時は各プロセスをCtrl-Cで停止する。
 
 `expo run:ios --no-bundler` が別の8081ポートを開いた場合は、開発クライアントで上記8093を選ぶ。localhostがIPv6のみでlistenされる環境では上記NODE_OPTIONSを使う（端末が要求する127.0.0.1と一致させる）。
 

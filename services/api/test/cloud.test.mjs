@@ -46,18 +46,19 @@ const card = {
 }
 const html =
   '<html><body><h1>卵焼き</h1><p>卵 2個</p><p>卵を焼く</p></body></html>'
-test('simulator real extraction is explicit, local, key-protected, and model-call capped', async () => {
+test('simulator ports require real extraction, keys, and a model-call cap', async () => {
   assert.equal(simulatorExtraction({}).enabled, false)
   assert.equal(simulatorExtraction({ SIMULATOR_REAL_EXTRACTION: '0' }).enabled, false)
   const env = {
-    SIMULATOR_REAL_EXTRACTION: '1',
     CLERK_ISSUER_URL: 'https://development.clerk.accounts.dev',
     OPENAI_API_KEY: 'test-only',
     OPENAI_MODEL: 'configured-model',
     DEMO_PORT: '4330',
   }
+  assert.throws(() => simulatorExtraction({ DEMO_PORT: '4330' }), /CLERK_ISSUER_URL/)
+  assert.throws(() => simulatorExtraction({ ...env, SIMULATOR_REAL_EXTRACTION: '0' }), /fixed extraction fixtures/)
   assert.throws(() => simulatorExtraction({ ...env, OPENAI_API_KEY: '' }), /OPENAI_API_KEY/)
-  assert.throws(() => simulatorExtraction({ ...env, DEMO_PORT: '4329' }), /4329/)
+  assert.throws(() => simulatorExtraction({ ...env, DEMO_PORT: '4329', SIMULATOR_REAL_EXTRACTION: '1' }), /4329/)
   assert.throws(() => simulatorExtraction({ ...env, APP_ENV: 'prod' }), /development-only/)
   let calls = 0
   const fetchPage = async (url) => ({ url, html }),
@@ -78,10 +79,10 @@ test('simulator real extraction is explicit, local, key-protected, and model-cal
 })
 test('simulator real mode passes fetched HTML through the production extractor', async () => {
   const env = {
-    SIMULATOR_REAL_EXTRACTION: '1',
     CLERK_ISSUER_URL: 'https://development.clerk.accounts.dev',
     OPENAI_API_KEY: 'test-only',
     OPENAI_MODEL: 'configured-model',
+    DEMO_PORT: '4330',
   }
   const editableCard = { ...card, steps: ['卵を溶いて、ふんわり焼き上げる。'] }
   let calls = 0

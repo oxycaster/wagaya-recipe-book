@@ -11,14 +11,19 @@ export function simulatorExtraction(
   const flag = env.SIMULATOR_REAL_EXTRACTION
   if (flag !== undefined && flag !== '0' && flag !== '1')
     throw new Error('SIMULATOR_REAL_EXTRACTION must be 0 or 1')
-  if (flag !== '1') return { enabled: false }
+  const port = Number(env.DEMO_PORT || 4329)
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error('Invalid simulator port')
+  if (port === 4329) {
+    if (flag === '1') throw new Error('Real simulator extraction cannot use 4329')
+    return { enabled: false }
+  }
+  if (flag === '0')
+    throw new Error('Simulator ports cannot use fixed extraction fixtures')
   if (env.NODE_ENV === 'production' || env.APP_ENV === 'prod')
     throw new Error('Real simulator extraction is development-only')
   for (const key of ['CLERK_ISSUER_URL', 'OPENAI_API_KEY', 'OPENAI_MODEL'])
     if (!env[key]) throw new Error(`Real simulator extraction needs ${key}`)
-  const port = Number(env.DEMO_PORT || 4330)
-  if (!Number.isInteger(port) || port < 1 || port > 65535 || port === 4329)
-    throw new Error('Real simulator extraction needs a port other than 4329')
   let modelCalls = 0
   const guardedModelFetch = (...args) => {
     if (modelCalls >= MAX_SIMULATOR_MODEL_CALLS)
