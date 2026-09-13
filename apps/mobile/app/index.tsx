@@ -1107,7 +1107,6 @@ function RecipeList({ book, busy, run, notify, archived = false, refreshKey }: {
                 recipe={selected}
                 editable={book.role !== 'viewer'}
                 busy={busy}
-                back={() => setSelected(null)}
                 onAddToday={book.role === 'viewer' || selected.archived_at ? undefined : () => addToday(selected)}
                 addedToday={addedToday.includes(selected.id)}
                 archive={book.role === 'viewer' ? undefined : async () => { await toggleArchive(selected) }}
@@ -1136,8 +1135,6 @@ function RecipeDetail({
   recipe,
   editable,
   busy,
-  back,
-  backLabel = 'レシピ一覧に戻る',
   save,
   onAddToday,
   addedToday = false,
@@ -1146,8 +1143,6 @@ function RecipeDetail({
   recipe: Recipe
   editable: boolean
   busy: boolean
-  back: () => void
-  backLabel?: string
   save: (c: Card, m: string) => Promise<void>
   onAddToday?: () => void
   addedToday?: boolean
@@ -1173,12 +1168,6 @@ function RecipeDetail({
   })
   return (
     <>
-      <Button
-        label={backLabel}
-        secondary
-        disabled={busy}
-        onPress={back}
-      />
       {!edit && <RecipeArtwork recipe={recipe} />}
       {onAddToday && !edit && (
         <Button
@@ -2053,8 +2042,6 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
                 recipe={selected}
                 editable={false}
                 busy={false}
-                back={() => setSelected(null)}
-                backLabel="献立に戻る"
                 save={async () => {}}
               />
             )}
