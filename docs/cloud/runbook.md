@@ -108,7 +108,7 @@ prodでは、ホスティング先のsecret managerから `APP_ENV=prod`、`DATA
 
 ## 課金・ワーカーの復旧
 
-- 購入確認の真実はDB台帳。SDKの購入結果やクライアントの金額で付与しない。Webhookを受け取れない場合は同じイベントをRevenueCatから再配信する。未登録userは503で再送を要求し、eventは記録しない。
+- 購入確認の真実はDB台帳。SDKの購入結果やクライアントの金額で付与しない。Webhookを受け取れない場合はRevenueCatの配信履歴でHTTP応答を確認し、認証ヘッダーと実行中APIの `REVENUECAT_WEBHOOK_SECRET` が一致することを秘密値を記録せず照合する。`401 INVALID_WEBHOOK` はこの照合の失敗で、SDK購入成功だけでは残高を付与できない。設定修正後に失敗した同じイベントをRevenueCatから再配信し、HTTP 200、台帳の冪等性、本人の残高を確認する。未登録userは503で再送を要求し、eventは記録しない。
 - 購入のイベントIDと、store/environment/transaction IDをそれぞれ一意化する。返金先着にも対応。返金取消はevent_timestamp_msで新旧を判定。購入者が違う既知transactionは409として運用調査し、別ユーザーに付け替えない。
 - 販売済み商品IDの権利数を変更しない。権利数を変える場合は新商品IDを作る。販売終了商品の対応表も返金/遅延通知のためサーバーに残す。
 - 購入通知遅延中は画面に確認待ちを出し、残高を更新する。Consumableの端末復元に依存せず同じ認証アカウントの残高で復旧。自動reconciliationは未実装なのでWebhook失敗監視・再送が公開条件。
