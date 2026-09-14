@@ -1,5 +1,7 @@
 # 進捗・引き継ぎ
 
+- 2026-09-15 TestFlight購入の残高不反映を修復: RevenueCatの本番 `production-api` Webhook配信履歴で、同一テスト利用者のSandbox消耗型購入3件（50回分2件、10回分1件）がいずれも6回試行後に失敗し、API応答は `401 {"error":"INVALID_WEBHOOK"}` と確認した。WebhookはBoth Production and Sandbox、対象アプリ限定、全イベントに設定され、購入イベントの種類・商品ID・利用者IDはAPIの受入条件と一致した。公開API `/health` は正常。`rtk mise exec -- pnpm test`（services/api）成功。AWS SSO再認証後、本番Secrets Managerの認証値を使った無害な `TEST` POST は公開Webhookから `200 {"ignored":true}` が返り、保存値と実行中APIの一致を確認。RevenueCat側のAuthorizationヘッダーに不一致または欠落があると特定し、本人が正しい値へ更新した。失敗した購入通知3件を再送するとすべて `Sent`、API応答 `200 {"accepted":true}` になった。各応答はDBトランザクションのコミット後に返るため通知は受理済み。利用者はTestFlight実機で「残高を更新」後に111回分と表示されたことを確認した。本番DBへのMacからの直接接続は許可IP制限で不可。サーバー内からの読み取り専用照合はLightsail一時SSH証明書の読込エラーで未完了で、一時的に開いた22番ポートは各試行後に閉じた。秘密値や購入者IDは記録しておらず、一時的なクリップボード上の認証値も消去済み。
+
 - 2026-09-14 Issue #51 対応: ホーム画面の `SafeAreaView` だけ下端を除外し、タブバーに端末の下端セーフエリア分の余白を取り込んで背景を画面下端まで連続させた。認証画面などタブバーのない画面は従来のセーフエリアを維持。`rtk pnpm --dir apps/mobile check` と `rtk git diff --check` は成功。iPhone 17e Simulatorは起動中だが、この作業ツリーのMetro/APIは停止中のため変更後の実画面と実機配布版は未確認。次は開発ビルドで各タブの下端を確認する。
 
 - 2026-09-14 Issue #50 対応: 献立とレシピ一覧から開くレシピカードの page sheet で上部の戻るボタンを削除し、カードを先頭から表示するよう変更。両方のシートの `onDismiss` / `onRequestClose` は維持。Apple HIG の Sheets は Back をシートの閉じる操作に使うことを意図していない。`rtk mise exec -- pnpm --dir apps/mobile check`、iOS export、`rtk git diff --check` は成功。Simulator は古い JavaScript のカード画面を表示し、Metro を起動して再読み込みしても変更後の表示に更新されなかったため、実画面と下スワイプ復帰は未確認。次は開発ビルドを現作業ツリーの Metro へ接続し、献立・レシピ一覧からカードを開いた際の上端表示と下スワイプ復帰を確認する。
