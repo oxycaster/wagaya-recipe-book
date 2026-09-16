@@ -208,6 +208,10 @@ const artwork = {
   汁物: { base: '#d9bd81', accent: '#765b32', mark: '汁' },
   その他: { base: '#a9beb8', accent: '#426962', mark: '菜' },
 } as const
+const recipeCategories = ['主菜', '副菜', '汁物', 'その他'] as const
+type RecipeCategory = (typeof recipeCategories)[number]
+type RecipeCategoryFilter = 'すべて' | RecipeCategory
+const mealCategories = ['主菜', '副菜', '汁物'] as const
 
 function RecipeArtwork({
   recipe,
@@ -980,6 +984,7 @@ function RecipeList({ book, busy, run, notify, archived = false, refreshKey }: {
   const [recipes, setRecipes] = useState<Recipe[]>([]),
     [selected, setSelected] = useState<Recipe | null>(null),
     [search, setSearch] = useState(''),
+    [category, setCategory] = useState<RecipeCategoryFilter>('すべて'),
     [loading, setLoading] = useState(true)
   const [addedToday, setAddedToday] = useState<string[]>([])
   const addToday = (recipe: Recipe) =>
@@ -1026,14 +1031,43 @@ function RecipeList({ book, busy, run, notify, archived = false, refreshKey }: {
       notify(recipe.archived_at ? 'レシピを一覧に戻しました。' : 'レシピをアーカイブしました。')
     })
   const visible = recipes.filter((r) => Boolean(r.archived_at) === archived)
-  const filtered = visible.filter((r) =>
-    (r.card.title + r.card.tags.join(' '))
-      .toLocaleLowerCase('ja-JP')
-      .includes(search.trim().toLocaleLowerCase('ja-JP')),
+  const filtered = visible.filter(
+    (r) =>
+      (category === 'すべて' || r.card.category === category) &&
+      (r.card.title + r.card.tags.join(' '))
+        .toLocaleLowerCase('ja-JP')
+        .includes(search.trim().toLocaleLowerCase('ja-JP')),
   )
   return (
     <>
       <SearchField value={search} onChangeText={setSearch} />
+      <View accessibilityLabel="レシピの分類" style={styles.filterRow}>
+        {(['すべて', ...recipeCategories] as const).map((value) => {
+          const selected = category === value
+          return (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              key={value}
+              onPress={() => setCategory(value)}
+              style={({ pressed }) => [
+                styles.filterChip,
+                selected && styles.filterChipSelected,
+                pressed && { opacity: 0.55 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  selected && styles.filterChipTextSelected,
+                ]}
+              >
+                {value}
+              </Text>
+            </Pressable>
+          )
+        })}
+      </View>
       {loading ? (
         <ActivityIndicator color={green} />
       ) : !visible.length && archived ? (
@@ -1048,8 +1082,15 @@ function RecipeList({ book, busy, run, notify, archived = false, refreshKey }: {
       ) : !filtered.length ? (
         <View style={styles.panel}>
           <Text style={styles.heading}>該当するレシピがありません</Text>
-          <Note>検索語を変えるか、消去してすべてのレシピを表示してください。</Note>
-          <Button secondary label="検索を消去" onPress={() => setSearch('')} />
+          <Note>検索語または分類を変えてください。</Note>
+          <Button
+            secondary
+            label="絞り込みを解除"
+            onPress={() => {
+              setSearch('')
+              setCategory('すべて')
+            }}
+          />
         </View>
       ) : (
         filtered.map((r) => (
@@ -1891,6 +1932,40 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
     void load(localDay()).catch((e) => notify(errorText(e)))
   }, [load])
   const edit = book.role !== 'viewer' && day === loadedDay
+  const plannedCategories = new Set(
+    plan.items
+      .map((item) => recipes.find((recipe) => recipe.id === item.recipeId)?.card.category)
+      .filter((category): category is RecipeCategory => Boolean(category)),
+  )
+  const missingCategories = mealCategories.filter(
+    (category) => !plannedCategories.has(category),
+  )
+  const recommendations = missingCategories
+    .map((category) => ({
+      category,
+      recipes: recipes
+        .filter(
+          (recipe) =>
+            !recipe.archived_at &&
+            recipe.card.category === category &&
+            !plan.items.some((item) => item.recipeId === recipe.id),
+        )
+        .slice(0, 2),
+    }))
+    .filter((group) => group.recipes.length)
+  const addToPlan = (recipe: Recipe) =>
+    setPlan((current) => ({
+      ...current,
+      items: [
+        ...current.items,
+        {
+          id: Crypto.randomUUID(),
+          recipeId: recipe.id,
+          state: 'cook',
+          portions: recipe.card.servings || 2,
+        },
+      ],
+    }))
   return (
     <>
       <Field
@@ -1948,19 +2023,6 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
                       />
                     ))}
                   </View>
-                  <Field
-                    label="人数"
-                    value={String(item.portions)}
-                    keyboardType="decimal-pad"
-                    onChangeText={(v) =>
-                      setPlan((p) => ({
-                        ...p,
-                        items: p.items.map((i) =>
-                          i.id === item.id ? { ...i, portions: Number(v) } : i,
-                        ),
-                      }))
-                    }
-                  />
                   <Button
                     secondary
                     label="献立から外す"
@@ -1973,40 +2035,42 @@ function MealPlan({ book, busy, run, notify }: { book: Book } & Actions) {
                   />
                 </>
               ) : (
-                <Note>
-                  {item.state === 'cook' ? '作る' : '残り物'} · {item.portions}
-                  人分
-                </Note>
+                <Note>{item.state === 'cook' ? '作る' : '残り物'}</Note>
               )}
             </View>
           ))}
           {!plan.items.length && <Note>この日の献立はまだありません。</Note>}
           {edit && (
             <>
-              <Text style={styles.heading}>料理を追加</Text>
-              {recipes
-                .filter((r) => !r.archived_at && !plan.items.some((i) => i.recipeId === r.id))
-                .map((r) => (
-                  <Button
-                    key={r.id}
-                    secondary
-                    label={`＋ ${r.card.title}`}
-                    onPress={() =>
-                      setPlan((p) => ({
-                        ...p,
-                        items: [
-                          ...p.items,
-                          {
-                            id: Crypto.randomUUID(),
-                            recipeId: r.id,
-                            state: 'cook',
-                            portions: r.card.servings || 2,
-                          },
-                        ],
-                      }))
-                    }
-                  />
-                ))}
+              <View style={styles.panel}>
+                <Text style={styles.heading}>献立のおすすめ</Text>
+                {!missingCategories.length ? (
+                  <Note>主菜・副菜・汁物がそろっています。</Note>
+                ) : recommendations.length ? (
+                  <>
+                    <Note>まだない分類から、追加する料理を選べます。</Note>
+                    {recommendations.map((group) => (
+                      <View key={group.category} style={styles.recommendationGroup}>
+                        <Text style={styles.recommendationTitle}>
+                          {group.category}のおすすめ
+                        </Text>
+                        {group.recipes.map((recipe) => (
+                          <Button
+                            key={recipe.id}
+                            secondary
+                            label={`＋ ${recipe.card.title}`}
+                            onPress={() => addToPlan(recipe)}
+                          />
+                        ))}
+                      </View>
+                    ))}
+                  </>
+                ) : (
+                  <Note>
+                    {missingCategories.join('・')}がまだありません。該当するレシピは「レシピ」から追加できます。
+                  </Note>
+                )}
+              </View>
               <Button
                 label="献立を保存"
                 disabled={busy}
@@ -2253,6 +2317,37 @@ function Settings({
     [],
   )
   const [storefront, setStorefront] = useState<string | null>(null)
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const loadCatalog = useCallback(
+    async (announce = false) => {
+      setCatalogLoading(true)
+      try {
+        const availableProducts = await products(userId)
+        setCatalog(availableProducts)
+        if (!availableProducts.length) {
+          const store = await Purchases.getStorefront()
+          const country = store?.countryCode?.toUpperCase() || '取得不可'
+          setStorefront(country)
+          if (announce) {
+            notify(
+              country === 'JPN'
+                ? '日本のApp Storeには接続できましたが、商品情報が返りませんでした（診断: IAP-JPN-0）。'
+                : `App Storeの販売国が日本ではありません（現在: ${country}）。日本のApple Accountで「メディアと購入」にサインインしてください。`,
+            )
+          }
+        } else {
+          setStorefront(null)
+          if (announce) notify('商品情報を更新しました。')
+        }
+      } finally {
+        setCatalogLoading(false)
+      }
+    },
+    [userId, notify],
+  )
+  useEffect(() => {
+    void loadCatalog().catch((error) => notify(errorText(error)))
+  }, [loadCatalog])
   return (
     <>
       <View style={styles.panel}>
@@ -2264,27 +2359,11 @@ function Settings({
           処理中の予約: {wallet?.reserved ?? 0}
           回分。購入権に有効期限はありません。参加者と共有するカードも、取り込む本人の権利を使います。
         </Note>
-        <Button
-          secondary
-          label="購入できる商品を読む"
-          disabled={busy}
-          onPress={() =>
-            void run(async () => {
-              const p = await products(userId)
-              setCatalog(p)
-              if (!p.length) {
-                const store = await Purchases.getStorefront()
-                const country = store?.countryCode?.toUpperCase() || '取得不可'
-                setStorefront(country)
-                notify(
-                  country === 'JPN'
-                    ? '日本のApp Storeには接続できましたが、商品情報が返りませんでした（診断: IAP-JPN-0）。'
-                    : `App Storeの販売国が日本ではありません（現在: ${country}）。日本のApple Accountで「メディアと購入」にサインインしてください。`,
-                )
-              } else setStorefront(null)
-            })
-          }
-        />
+        {catalogLoading && <ActivityIndicator color={green} />}
+        {catalogLoading && <Note>購入できる取り込み権を確認しています。</Note>}
+        {!catalogLoading && !catalog.length && (
+          <Note>購入できる取り込み権を表示できませんでした。商品情報を更新してください。</Note>
+        )}
         {storefront && (
           <Note>
             StoreKit診断: 販売国 {storefront} / 取得商品 0件
@@ -2312,6 +2391,12 @@ function Settings({
             }
           />
         ))}
+        <Button
+          secondary
+          label="商品情報を更新"
+          disabled={busy || catalogLoading}
+          onPress={() => void run(() => loadCatalog(true))}
+        />
         <Button
           secondary
           label="残高を更新"
@@ -2631,6 +2716,13 @@ const styles = StyleSheet.create({
   },
   recipeTags: { fontSize: 14, color: colors.secondaryText, lineHeight: 20 },
   mealHeading: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  recommendationGroup: { gap: 8, marginTop: 4 },
+  recommendationTitle: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '700',
+    color: colors.text,
+  },
   recipeTitle: {
     fontSize: 22,
     fontWeight: '700',
